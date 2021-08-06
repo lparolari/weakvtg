@@ -31,10 +31,11 @@ def criterion():
 
 @mock.patch('weakvtg.train.tqdm', notqdm)
 def test_train(loader, model, optimizer, criterion):
-    out = train(train_loader=loader, valid_loader=loader, model=model, optimizer=optimizer,
-                criterion=criterion, n_epochs=15)
+    train_history, valid_history = train(train_loader=loader, valid_loader=loader, model=model, optimizer=optimizer,
+                                         criterion=criterion, n_epochs=15)
 
-    assert isinstance(out, dict)
+    assert isinstance(train_history, dict)
+    assert isinstance(valid_history, dict)
 
 
 def test_epoch(loader, model, optimizer, criterion):
