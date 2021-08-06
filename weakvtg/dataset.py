@@ -50,8 +50,8 @@ class VtgDataset(Dataset):
 def collate_fn(batch, tokenizer, vocab):
     batch = pivot(batch)
 
-    phrases = batch['phrases']  # [b, n_ph, n_words]
-    phrases_2_crd = batch['phrases_2_crd']  # [b, n_ph, 4]
+    phrases = batch["phrases"]  # [b, n_ph, n_words]
+    phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
 
     phrases, phrases_mask = get_phrases_tensor(phrases, tokenizer=tokenizer, vocab=vocab)
     phrases_2_crd, phrases_2_crd_mask = get_padded_examples(phrases_2_crd,
@@ -62,19 +62,19 @@ def collate_fn(batch, tokenizer, vocab):
                                                                 get_max_length_phrases(phrases_2_crd)))
 
     return {
-        'id': torch.tensor(batch['id'], dtype=torch.long),
-        'image_w': torch.tensor(batch['image_w'], dtype=torch.long),
-        'image_h': torch.tensor(batch['image_h'], dtype=torch.long),
-        'pred_n_boxes': torch.tensor(batch['pred_n_boxes'], dtype=torch.int),
-        'pred_boxes': torch.tensor(batch['pred_boxes'], dtype=torch.float32),
-        'pred_cls_prob': torch.tensor(batch['pred_cls_prob'], dtype=torch.float32),
-        'pred_attr_prob': torch.tensor(batch['pred_attr_prob'], dtype=torch.float32),
-        'pred_boxes_features': torch.tensor(batch['pred_boxes_features'], dtype=torch.float32),
-        'pred_active_box_index': torch.tensor(batch['pred_active_box_index'], dtype=torch.long),
-        'phrases': phrases,
-        'phrases_mask': phrases_mask,
-        'phrases_2_crd': phrases_2_crd,
-        'phrases_2_crd_mask': phrases_2_crd_mask,
+        "id": torch.tensor(batch["id"], dtype=torch.long),
+        "image_w": torch.tensor(batch["image_w"], dtype=torch.long),
+        "image_h": torch.tensor(batch["image_h"], dtype=torch.long),
+        "pred_n_boxes": torch.tensor(batch["pred_n_boxes"], dtype=torch.int),
+        "pred_boxes": torch.tensor(batch["pred_boxes"], dtype=torch.float32),
+        "pred_cls_prob": torch.tensor(batch["pred_cls_prob"], dtype=torch.float32),
+        "pred_attr_prob": torch.tensor(batch["pred_attr_prob"], dtype=torch.float32),
+        "pred_boxes_features": torch.tensor(batch["pred_boxes_features"], dtype=torch.float32),
+        "pred_active_box_index": torch.tensor(batch["pred_active_box_index"], dtype=torch.long),
+        "phrases": phrases,
+        "phrases_mask": phrases_mask,
+        "phrases_2_crd": phrases_2_crd,
+        "phrases_2_crd_mask": phrases_2_crd_mask,
     }
 
 
@@ -88,18 +88,18 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
     example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
 
-    pred_n_boxes = example['pred_n_boxes']
-    n_boxes_class = len(example['pred_attr_prob'][0])
-    n_boxes_attr = len(example['pred_cls_prob'][0])
-    n_boxes_features = len(example['pred_boxes_features'][0])
+    pred_n_boxes = example["pred_n_boxes"]
+    n_boxes_class = len(example["pred_attr_prob"][0])
+    n_boxes_attr = len(example["pred_cls_prob"][0])
+    n_boxes_features = len(example["pred_boxes_features"][0])
     n_boxes_to_gen = n_boxes_to_keep - pred_n_boxes
-    example['pred_n_boxes'] = n_boxes_to_keep
-    example['pred_boxes'] = example['pred_boxes'] + [[0] * 4 for i in range(n_boxes_to_gen)]
-    example['pred_boxes_features'] = example['pred_boxes_features'] + [[0] * n_boxes_features for i in
+    example["pred_n_boxes"] = n_boxes_to_keep
+    example["pred_boxes"] = example["pred_boxes"] + [[0] * 4 for i in range(n_boxes_to_gen)]
+    example["pred_boxes_features"] = example["pred_boxes_features"] + [[0] * n_boxes_features for i in
                                                                        range(n_boxes_to_gen)]
-    example['pred_attr_prob'] = example['pred_attr_prob'] + [[0] * n_boxes_class for i in range(n_boxes_to_gen)]
-    example['pred_cls_prob'] = example['pred_cls_prob'] + [[0] * n_boxes_attr for i in range(n_boxes_to_gen)]
+    example["pred_attr_prob"] = example["pred_attr_prob"] + [[0] * n_boxes_class for i in range(n_boxes_to_gen)]
+    example["pred_cls_prob"] = example["pred_cls_prob"] + [[0] * n_boxes_attr for i in range(n_boxes_to_gen)]
 
-    example['pred_active_box_index'] = [random.randrange(0, pred_n_boxes) for _ in range(n_active_box)]
+    example["pred_active_box_index"] = [random.randrange(0, pred_n_boxes) for _ in range(n_active_box)]
 
     return example
