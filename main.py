@@ -5,8 +5,8 @@ import logging
 import torch
 import torchtext
 import wandb
+from weakvtg.config import get_config
 
-from weakvtg.config import parse_configs, get_config, get_config_or_default
 from weakvtg.dataset import VtgDataset, collate_fn
 from weakvtg.math import get_argmax, get_max
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    config = get_config_or_default({
+    config = get_config({
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
         "prefetch_factor": args.prefetch_factor,
