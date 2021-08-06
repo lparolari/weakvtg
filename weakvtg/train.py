@@ -1,9 +1,5 @@
 import logging
-import os
-import sys
 import time
-
-from tqdm import tqdm
 
 from weakvtg.prettyprint import pp
 from weakvtg.timeit import get_fancy_eta, get_fancy_time, get_hms, get_delta

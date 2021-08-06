@@ -3,7 +3,6 @@ from unittest import mock
 import pytest
 
 from tests.mock_tensor import MockTensor
-from tests.notqdm import notqdm
 from tests.utils import contains
 from weakvtg.train import train, epoch
 
@@ -29,7 +28,6 @@ def criterion():
     return c
 
 
-@mock.patch('weakvtg.train.tqdm', notqdm)
 def test_train(loader, model, optimizer, criterion):
     train_history, valid_history = train(train_loader=loader, valid_loader=loader, model=model, optimizer=optimizer,
                                          criterion=criterion, n_epochs=15)
