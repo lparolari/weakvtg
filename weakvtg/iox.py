@@ -1,9 +1,10 @@
+import json
 import pickle
 
 
 def load_json(filename):
     with open(filename, "r") as f:
-        data = filename.load(f)
+        data = json.load(f)
     return data
 
 
