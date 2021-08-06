@@ -1,16 +1,22 @@
-# This is a sample Python script.
+import argparse
+import json
+import logging
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+from weakvtg.config import parse_configs
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train, validate, test or plot some example with `weakvtg` model.")
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    parser.add_argument("--configs", dest="configs", type=str, default=None,
+                        help="Model parameters as a JSON dictionary.")
+    parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
+    parser.add_argument("--log-file", dest="log_file", type=str, default=None, help="Log filename")
+
+    args = parser.parse_args()
+    configs = parse_configs(args.configs)
+
+    logging.basicConfig(filename=args.log_file, level=args.log_level)
+
+    logging.info(f"Model started with following parameters: {configs}")
+
