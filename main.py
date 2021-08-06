@@ -44,6 +44,8 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    print("Hello, World!")
+
     args = parse_args()
     configs = parse_configs(args.configs)
 
@@ -78,3 +80,5 @@ if __name__ == "__main__":
 
     logging.info(f"Best hist validation loss at epoch {get_argmax(valid_loss)}: {get_max(valid_loss)}")
     logging.info(f"Best hist validation accuracy at epoch {get_argmax(valid_accuracy)}: {get_max(valid_accuracy)}")
+
+    print("Goodbye, World!")
