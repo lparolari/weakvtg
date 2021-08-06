@@ -1,9 +1,11 @@
 import logging
 import time
 
+import wandb
+
 from weakvtg.prettyprint import pp
 from weakvtg.timeit import get_fancy_eta, get_fancy_time, get_hms, get_delta
-from weakvtg.utils import get_batch_size, percent, pivot
+from weakvtg.utils import get_batch_size, percent, pivot, map_dict
 
 
 def epoch(loader, model, optimizer, criterion, train=True):
@@ -73,6 +75,8 @@ def train(train_loader, valid_loader, model, optimizer, criterion, n_epochs=15):
         running_time = get_fancy_time(*get_hms(get_delta(start_time, end_time)))
         start_time = end_time
         logging.info(f"Complete epoch {fancy_epoch_no} in {running_time}")
+        wandb.log({**map_dict(train_out, key_fn=lambda x: f"train_{x}"),
+                   **map_dict(valid_out, key_fn=lambda x: f"valid_{x}")})
 
     train_results = pivot(train_results)
     valid_results = pivot(valid_results)

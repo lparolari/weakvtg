@@ -28,6 +28,7 @@ def criterion():
     return c
 
 
+@mock.patch('weakvtg.train.wandb', mock.Mock())
 def test_train(loader, model, optimizer, criterion):
     train_history, valid_history = train(train_loader=loader, valid_loader=loader, model=model, optimizer=optimizer,
                                          criterion=criterion, n_epochs=15)

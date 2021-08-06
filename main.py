@@ -4,6 +4,7 @@ import logging
 
 import torch
 import torchtext
+import wandb
 
 from weakvtg.config import parse_configs
 from weakvtg.dataset import VtgDataset, collate_fn
@@ -37,6 +38,7 @@ def parse_args():
                         help="Model parameters as a JSON dictionary.")
     parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
     parser.add_argument("--log-file", dest="log_file", type=str, default=None, help="Log filename")
+    parser.add_argument("--use-wandb", dest="use_wandb", action="store_true", default=False, help="Wandb log")
 
     return parser.parse_args()
 
@@ -44,6 +46,9 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     configs = parse_configs(args.configs)
+
+    wandb.init(project='weakvtg', entity='vtkel-solver', mode="online" if args.use_wandb else "disabled")
+    wandb.config.update(configs)
 
     logging.basicConfig(filename=args.log_file, level=args.log_level)
 
