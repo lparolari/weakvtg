@@ -1,18 +1,21 @@
-import json
+__defaults = {
+    "batch_size": 64,
+    "num_workers": 0,
+    "prefetch_factor": 2,
+}
 
 
-configs = {}
+def get_config(config, defaults=None):
+    """
+    Returns current values or defaults
+    """
+    if defaults is None:
+        defaults = __defaults
 
+    # remove entries with None value to let defaults replace them
+    config = {k: v for k, v in config.items() if v is not None}
 
-def get_configs():
-    return configs
+    new_config = defaults.copy()
+    new_config.update(config)
 
-
-def parse_configs(s: str = None):
-    if s is None:
-        return get_defaults()
-    return json.loads(s)
-
-
-def get_defaults():
-    return {}
+    return new_config

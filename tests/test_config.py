@@ -1,5 +1,8 @@
-from weakvtg.config import parse_configs
+from weakvtg.config import get_config
 
 
-def test_parse_config():
-    assert isinstance(parse_configs('{"foo": 0, "bar": "hello"}'), dict)
+def test_config():
+    d1 = {"batch_size": 32, "num_workers": None}
+    d2 = {"batch_size": 64, "num_workers": 0, "prefetch_factor": 2}
+
+    assert get_config(d1, d2) == {"batch_size": 32, "num_workers": 0, "prefetch_factor": 2}

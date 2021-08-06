@@ -6,7 +6,7 @@ import torch
 import torchtext
 import wandb
 
-from weakvtg.config import parse_configs
+from weakvtg.config import parse_configs, get_config, get_config_or_default
 from weakvtg.dataset import VtgDataset, collate_fn
 from weakvtg.math import get_argmax, get_max
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
@@ -34,8 +34,12 @@ class MockTensor:
 def parse_args():
     parser = argparse.ArgumentParser(description="Train, validate, test or plot some example with `weakvtg` model.")
 
-    parser.add_argument("--configs", dest="configs", type=str, default=None,
-                        help="Model parameters as a JSON dictionary.")
+    parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--num-workers", type=int, default=None)
+    parser.add_argument("--prefetch-factor", type=int, default=None)
+    parser.add_argument("--data-filepath", type=str, default=None)
+    parser.add_argument("--train-idx-filepath", type=str, default=None)
+
     parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
     parser.add_argument("--log-file", dest="log_file", type=str, default=None, help="Log filename")
     parser.add_argument("--use-wandb", dest="use_wandb", action="store_true", default=False, help="Wandb log")
@@ -47,16 +51,29 @@ if __name__ == "__main__":
     print("Hello, World!")
 
     args = parse_args()
-    configs = parse_configs(args.configs)
+
+    config = get_config_or_default({
+        "batch_size": args.batch_size,
+        "num_workers": args.num_workers,
+        "prefetch_factor": args.prefetch_factor,
+        "data_filepath": args.data_filepath,
+        "train_idx_filepath": args.train_idx_filepath
+    })
+
+    batch_size = config["batch_size"]
+    num_workers = config["num_workers"]
+    prefetch_factor = config["prefetch_factor"]
+    data_filepath = config["data_filepath"]
+    train_idx_filepath = config["train_idx_filepath"]
 
     wandb.init(project='weakvtg', entity='vtkel-solver', mode="online" if args.use_wandb else "disabled")
-    wandb.config.update(configs)
+    wandb.config.update(config)
 
     logging.basicConfig(filename=args.log_file, level=args.log_level)
 
-    logging.info(f"Model started with following parameters: {configs}")
+    logging.info(f"Model started with following parameters: {config}")
 
-    dataset = VtgDataset("data/referit_raw/preprocessed", "data/referit_raw/train.txt")
+    dataset = VtgDataset(data_filepath=data_filepath, idx_filepath=train_idx_filepath)
 
     tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(get_nlp()))
     vocab = load_vocab("data/referit_raw/vocab.json")
@@ -67,7 +84,8 @@ if __name__ == "__main__":
     def c(_1, _2):
         return MockTensor(1.), MockTensor(2.), MockTensor(3.), MockTensor(4.)
     from unittest import mock
-    train_loader = torch.utils.data.DataLoader(dataset, collate_fn=collate_function)
+    train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, collate_fn=collate_function,
+                                               num_workers=num_workers, prefetch_factor=prefetch_factor)
     valid_loader = [{"id": range(10)}, {"id": range(10)}, {"id": range(10)}, {"id": range(10)}]
     model = mock.Mock()
     optimizer = mock.Mock()
