@@ -12,14 +12,15 @@ dependencies:
   - blas=1.0=mkl
   - brotlipy=0.7.0=py38h27cfd23_1003
   - bzip2=1.0.8=h7b6447c_0
-  - ca-certificates=2020.10.14=0
+  - ca-certificates=2021.5.30=ha878542_0
   - catalogue=2.0.4=py38h578d9bd_0
-  - certifi=2020.6.20=py38_0
+  - certifi=2021.5.30=py38h578d9bd_0
   - cffi=1.14.6=py38h400218f_0
   - chardet=4.0.0=py38h06a4308_1003
   - click=7.1.2=pyh9f0ad1d_0
   - colorama=0.4.4=pyh9f0ad1d_0
   - configparser=5.0.2=pyhd8ed1ab_0
+  - coverage=5.5=py38h497a2fe_0
   - cpuonly=1.0=0
   - cryptography=3.4.7=py38hd23ed53_0
   - cymem=2.0.5=py38h709712a_2
@@ -90,6 +91,7 @@ dependencies:
   - pyparsing=2.4.7=py_0
   - pysocks=1.7.1=py38h06a4308_0
   - pytest=6.1.1=py38_0
+  - pytest-cov=2.12.1=pyhd8ed1ab_0
   - python=3.8.11=h12debd9_0_cpython
   - python-dateutil=2.8.2=pyhd8ed1ab_0
   - python_abi=3.8=2_cp38
@@ -128,5 +130,3 @@ dependencies:
   - yaml=0.2.5=h516909a_0
   - zlib=1.2.11=h7b6447c_3
   - zstd=1.4.9=haebb681_0
-  - pip:
-    - en-core-web-sm==3.1.0
