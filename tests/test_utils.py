@@ -11,7 +11,7 @@ def test_percent():
 
 
 def test_pivot():
-    out = pivot([{"a": 1, "b": 100},{"a": 2, "b": 200}])
+    out = pivot([{"a": 1, "b": 100}, {"a": 2, "b": 200}])
 
     assert out == {"a": [1, 2], "b": [100, 200]}
 
@@ -27,4 +27,5 @@ def test_map_dict():
     def k_fn(k): return f"awesome_{k}"
     def v_fn(v): return v + 1
 
+    assert map_dict(d) == d
     assert map_dict(d, key_fn=k_fn, value_fn=v_fn) == {"awesome_foo": 2, "awesome_bar": 1.15}
