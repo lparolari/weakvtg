@@ -3,7 +3,8 @@ __defaults = {
     "num_workers": 0,
     "prefetch_factor": 2,
     "data_filepath": "data/referit_raw/preprocessed",
-    "train_idx_filepath": "data/referit_raw/train.txt"
+    "train_idx_filepath": "data/referit_raw/train.txt",
+    "learning_rate": 0.001,
 }
 
 

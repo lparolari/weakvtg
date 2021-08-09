@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument("--prefetch-factor", type=int, default=None)
     parser.add_argument("--data-filepath", type=str, default=None)
     parser.add_argument("--train-idx-filepath", type=str, default=None)
+    parser.add_argument("--learning-rate", type=float, default=None)
 
     parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
     parser.add_argument("--log-file", dest="log_file", type=str, default=None, help="Log filename")
@@ -57,7 +58,8 @@ if __name__ == "__main__":
         "num_workers": args.num_workers,
         "prefetch_factor": args.prefetch_factor,
         "data_filepath": args.data_filepath,
-        "train_idx_filepath": args.train_idx_filepath
+        "train_idx_filepath": args.train_idx_filepath,
+        "learning_rate": args.learning_rate,
     })
 
     batch_size = config["batch_size"]
@@ -65,6 +67,7 @@ if __name__ == "__main__":
     prefetch_factor = config["prefetch_factor"]
     data_filepath = config["data_filepath"]
     train_idx_filepath = config["train_idx_filepath"]
+    learning_rate = config["learning_rate"]
 
     wandb.init(project='weakvtg', entity='vtkel-solver', mode="online" if args.use_wandb else "disabled")
     wandb.config.update(config)
@@ -88,7 +91,7 @@ if __name__ == "__main__":
                                                num_workers=num_workers, prefetch_factor=prefetch_factor)
     valid_loader = [{"id": range(10)}, {"id": range(10)}, {"id": range(10)}, {"id": range(10)}]
     model = mock.Mock()
-    optimizer = mock.Mock()
+    optimizer = torch.optim.Adam([torch.rand(2, 2, 4)], learning_rate)
     criterion = c
 
     _, valid_history = train(train_loader, valid_loader, model, optimizer, criterion)
