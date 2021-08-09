@@ -1,4 +1,8 @@
-from weakvtg.config import get_config
+from weakvtg.config import get_config, __defaults
+
+
+def test_config_defaults():
+    assert get_config({}) == __defaults
 
 
 def test_config():
