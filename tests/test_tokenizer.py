@@ -1,7 +1,7 @@
 import pytest
 import spacy
 
-from weakvtg.tokenizer import get_nlp
+from weakvtg.tokenizer import get_nlp, get_torchtext_tokenizer_adapter
 
 
 def text(doc):
@@ -31,3 +31,8 @@ def test_spacy_special_cases(nlp):
     assert text(nlp("-mid")) == ["-", "mid"]
 
     assert text(nlp("........anything")) == ["........", "anything"]
+
+
+def test_torchtext_adapter(nlp):
+    adapted_nlp = get_torchtext_tokenizer_adapter(nlp)
+    assert adapted_nlp("hills/cliffs") == text(nlp("hills/cliffs"))
