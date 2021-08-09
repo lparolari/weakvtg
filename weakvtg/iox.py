@@ -8,10 +8,6 @@ def load_json(filename):
     return data
 
 
-def load_pickle(filename, decompress=True):
+def load_pickle(filename):
     with open(filename, "rb") as f:
-        if decompress:
-            data = pickle.load(f)
-        else:
-            data = f.read()
-    return data
+        return pickle.load(f)
