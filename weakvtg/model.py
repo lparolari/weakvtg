@@ -1,3 +1,4 @@
+import functools
 import logging
 
 import torch
@@ -32,21 +33,61 @@ class MockModel(Model):
 
 
 class WeakVtgModel(Model):
-    def __init__(self, phrases_embedding_net=identity, phrases_recurrent_net=identity):
+    def __init__(self, phrases_embedding_net=identity, phrases_recurrent_net=identity, f_similarity=None):
         super().__init__()
 
         self.phrases_embedding_net = phrases_embedding_net
         self.phrases_recurrent_net = phrases_recurrent_net
+        self.f_similarity = f_similarity
 
     def forward(self, batch):
-        boxes = batch["pred_boxes"]  # [b, n_boxes, 4]
-        boxes_features = batch["pred_boxes_features"]  # [b, n_boxes, 2048]
-        phrases = batch["phrases"]  # [b, n_ph, n_words]
-        phrases_mask = batch["phrases_mask"]  # [b, n_ph, n_words]
+        boxes = batch["pred_boxes"]                             # [b, n_boxes, 4]
+        boxes_mask = batch["boxes_mask"]                        # [b, n_boxes, 1]
+        boxes_features = batch["pred_boxes_features"]           # [b, n_boxes, 2048]
+        phrases = batch["phrases"]                              # [b, n_ph+, n_words+]
+        phrases_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
+        phrases_negative = batch["phrases_negative"]            # [b, n_ph-, n_words-]
+        phrases_mask_negative = batch["phrases_mask_negative"]  # [b, n_ph-, n_words-]
 
+        _get_phrases_features = functools.partial(get_phrases_features,
+                                                  embedding_network=self.phrases_embedding_net,
+                                                  recurrent_network=self.phrases_recurrent_net)
+        _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
+
+        # extract positive/negative features
         img_x_positive = get_image_features(boxes, boxes_features)
-        phrases_x = get_phrases_features(phrases, phrases_mask, self.phrases_embedding_net, self.phrases_recurrent_net)
-        # TODO
+        phrases_x_positive = _get_phrases_features(phrases, phrases_mask)
+
+        img_x_negative = get_image_features(boxes, boxes_features)
+        phrases_x_negative = _get_phrases_features(phrases_negative, phrases_mask_negative)
+
+        # compute positive/negative logits and mask
+        positive_logits = predict_logits(img_x_positive, phrases_x_positive)
+        positive_logits = torch.masked_fill(positive_logits, get_synthetic_mask(phrases_mask) == 0, value=-1)
+        positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=0)
+
+        negative_logits = predict_logits(img_x_negative, phrases_x_negative)
+        negative_logits = torch.masked_fill(negative_logits, get_synthetic_mask(phrases_mask_negative) == 0, value=-1)
+        negative_logits = torch.masked_fill(negative_logits, _boxes_mask == 0, value=0)
+
+        return (positive_logits, negative_logits),
+
+
+def predict_logits(img_x, phrases_x, f_similarity=None):
+    """
+    Compute given similarity measure over the last dimension (features) of `img_x` and `phrases_x`.
+
+    :param img_x: A [*, d1, d2, d3] tensor
+    :param phrases_x: A [*, d1, d2, d3] tensor
+    :param f_similarity: A similarity measure between [*, d3] tensors
+    :return: A `[*, d1, d2]` tensor
+    """
+    if f_similarity is None:
+        f_similarity = F.cosine_similarity
+
+    similarity = f_similarity(img_x, phrases_x, dim=-1)
+
+    return similarity
 
 
 def get_image_features(boxes, boxes_feat):
