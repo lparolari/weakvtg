@@ -5,10 +5,12 @@ import logging
 import torch
 import torchtext
 import wandb
-from weakvtg.config import get_config
 
+from weakvtg.config import get_config
 from weakvtg.dataset import VtgDataset, collate_fn
+from weakvtg.loss import WeakVtgLoss
 from weakvtg.math import get_argmax, get_max
+from weakvtg.model import MockModel
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
 from weakvtg.train import train
 from weakvtg.vocabulary import load_vocab
@@ -84,15 +86,13 @@ if __name__ == "__main__":
     collate_function = functools.partial(collate_fn, tokenizer=tokenizer, vocab=vocab)
 
     # TODO: replace mock
-    def c(_1, _2):
-        return MockTensor(1.), MockTensor(2.), MockTensor(3.), MockTensor(4.)
     from unittest import mock
     train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, collate_fn=collate_function,
                                                num_workers=num_workers, prefetch_factor=prefetch_factor)
-    valid_loader = [{"id": range(10)}, {"id": range(10)}, {"id": range(10)}, {"id": range(10)}]
-    model = mock.Mock()
+    valid_loader = train_loader
+    model = MockModel()
     optimizer = torch.optim.Adam([torch.rand(2, 2, 4)], learning_rate)
-    criterion = c
+    criterion = WeakVtgLoss(torch.device("cpu"))
 
     _, valid_history = train(train_loader, valid_loader, model, optimizer, criterion)
 
