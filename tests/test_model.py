@@ -1,10 +1,12 @@
+import collections
 from unittest import mock
 
 import torch
 import torch.nn.functional as F
 
 from weakvtg.mask import get_synthetic_mask
-from weakvtg.model import get_image_features, get_phrases_features
+from weakvtg.model import get_image_features, get_phrases_features, create_phrases_embedding_network
+from weakvtg.vocabulary import get_vocab
 
 
 def test_get_image_features():
@@ -40,3 +42,12 @@ def test_get_phrases_features():
     # recurrent_network.assert_called_with(phrases, phrases_length, mask) throws an error
 
 
+def test_create_phrases_embedding_network():
+    vocab = get_vocab(collections.Counter({"the": 3, "pen": 1, "is": 2, "on": 1, "table": 1, "dog": 1, "running": 1}))
+
+    text_embedding = create_phrases_embedding_network(vocab, embedding_size=300, freeze=True)
+
+    phrases = torch.Tensor([[1, 2, 3, 4, 1, 5], [1, 6, 3, 7, 0, 0]]).long()
+    phrases_embedded = text_embedding(phrases)
+
+    assert phrases_embedded.size() == torch.Size((2, 6, 300))

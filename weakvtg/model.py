@@ -1,3 +1,5 @@
+import logging
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -82,3 +84,34 @@ def get_phrases_features(phrases, phrases_mask, embedding_network, recurrent_net
     phrases_x = torch.masked_fill(phrases_x, mask == 0, value=0)
 
     return phrases_x
+
+
+def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
+    vocab_size = len(vocab)
+    out_of_vocabulary = 0
+
+    embedding_matrix_values = torch.zeros((vocab_size + 1, embedding_size), requires_grad=(not freeze))
+
+    import torchtext
+    glove_embeddings = torchtext.vocab.GloVe("840B", dim=300)
+
+    glove_words = glove_embeddings.stoi.keys()
+
+    for idx in range(vocab_size):
+        word = vocab.get_itos()[idx]
+        if word in glove_words:
+            glove_idx = glove_embeddings.stoi[word]
+            embedding_matrix_values[idx, :] = glove_embeddings.vectors[glove_idx]
+        else:
+            out_of_vocabulary += 1
+            # nn.init.uniform_(embedding_matrix_values[idx, :], -1, 1)
+            nn.init.normal_(embedding_matrix_values[idx, :])
+
+    if out_of_vocabulary != 0:
+        logging.warning(f"Found {out_of_vocabulary} words out of vocabulary.")
+
+    embedding_matrix = nn.Embedding(vocab_size, embedding_size)
+    embedding_matrix.weight = torch.nn.Parameter(embedding_matrix_values)
+    embedding_matrix.weight.requires_grad = not freeze
+
+    return embedding_matrix
