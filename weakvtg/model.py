@@ -3,6 +3,7 @@ import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.nn.utils.rnn as rnn
 
 from weakvtg import anchors
 from weakvtg.mask import get_synthetic_mask
@@ -43,7 +44,7 @@ class WeakVtgModel(Model):
         phrases = batch["phrases"]  # [b, n_ph, n_words]
         phrases_mask = batch["phrases_mask"]  # [b, n_ph, n_words]
 
-        img_x = get_image_features(boxes, boxes_features)
+        img_x_positive = get_image_features(boxes, boxes_features)
         phrases_x = get_phrases_features(phrases, phrases_mask, self.phrases_embedding_net, self.phrases_recurrent_net)
         # TODO
 
@@ -115,3 +116,36 @@ def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
     embedding_matrix.weight.requires_grad = not freeze
 
     return embedding_matrix
+
+
+def create_phrases_recurrent_network(phrases_emb, phrases_length, mask, features_size, recurrent_network, device=None):
+    batch_size = phrases_emb.size()[0]
+    max_n_ph = phrases_emb.size()[1]
+    max_ph_len = phrases_emb.size()[2]
+
+    out_feats_dim = features_size
+
+    # [max_ph_len, b*max_n_ph, 300]
+    phrases_emb = phrases_emb.view(-1, phrases_emb.size()[-2], phrases_emb.size()[-1])
+    phrases_emb = phrases_emb.permute(1, 0, 2).contiguous()
+
+    # note: we need to fix the bug about phrases with lengths 0. On cpu required by torch
+    phrases_length_clamp = phrases_length.view(-1).clamp(min=1).cpu()
+    phrases_pack_emb = rnn.pack_padded_sequence(phrases_emb, phrases_length_clamp, enforce_sorted=False)
+    phrases_x_o, (phrases_x_h, phrases_x_c) = recurrent_network(phrases_pack_emb)
+    phrases_x_o = rnn.pad_packed_sequence(phrases_x_o, batch_first=False)  # (values, length)
+
+    # due to padding we need to get indexes in this way. On device now.
+    idx = (phrases_x_o[1] - 1).unsqueeze(0).unsqueeze(-1).repeat(1, 1, phrases_x_o[0].size()[2]).to(device)
+
+    phrases_x = torch.gather(phrases_x_o[0], 0, idx)  # [1, b*max_n_ph, 2048]
+    phrases_x = phrases_x.permute(1, 0, 2).contiguous().unsqueeze(0)  # [b*max_n_ph, 2048]
+
+    # back to batch size dimension
+    phrases_x = phrases_x.squeeze(1).view(batch_size, max_n_ph, out_feats_dim)  # [b, max_n_ph, out_feats_dim]
+    phrases_x = torch.masked_fill(phrases_x, mask == 0, 0)  # boolean mask required
+
+    # normalize features
+    phrases_x_norm = F.normalize(phrases_x, p=1, dim=-1)
+
+    return phrases_x_norm
