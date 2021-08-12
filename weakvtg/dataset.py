@@ -23,14 +23,23 @@ class VtgDataset(Dataset):
         self.n = len(self.examples)
 
     def __getitem__(self, index) -> T_co:
-        caption_filename = "{}".format(self.examples[index])
-        image_filename = "{}_img.pickle".format(self.examples[index].split("_")[0])
-        
-        caption = iox.load_pickle(os.path.join(self.data_filepath, caption_filename))
-        image = iox.load_pickle(os.path.join(self.data_filepath, image_filename))
-        
-        example = {**caption, **image}
-        example = process_example(example)
+        index_negative = self._sample_negative()
+
+        def _load_example(index):
+            image = self._load_image(index)
+            caption = self._load_caption(index)
+
+            example = {**caption, **image}
+            example = process_example(example)
+
+            return example
+
+        example = _load_example(index)
+        example_negative = _load_example(index_negative)
+
+        # we retrieve only required data from negative example
+        example["id_negative"] = example_negative["id"]
+        example["phrases_negative"] = example_negative["phrases"]
 
         return example
 
@@ -46,14 +55,30 @@ class VtgDataset(Dataset):
         examples = filter(lambda x: x.split("_")[0] in self.idx, examples)
         return list(examples)
 
+    def _load_caption(self, index):
+        caption_filename = "{}".format(self.examples[index])
+        caption = iox.load_pickle(os.path.join(self.data_filepath, caption_filename))
+        return caption
+
+    def _load_image(self, index):
+        image_filename = "{}_img.pickle".format(self.examples[index].split("_")[0])
+        image = iox.load_pickle(os.path.join(self.data_filepath, image_filename))
+        return image
+
+    def _sample_negative(self):
+        [index] = random.sample(range(self.n), 1)
+        return index
+
 
 def collate_fn(batch, tokenizer, vocab):
     batch = pivot(batch)
 
-    phrases = batch["phrases"]  # [b, n_ph, n_words]
+    phrases = batch["phrases"]  # [b, n_ph+, n_words+]
+    phrases_negative = batch["phrases"]  # [b, n_ph-, n_words-]
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
 
     phrases, phrases_mask = get_phrases_tensor(phrases, tokenizer=tokenizer, vocab=vocab)
+    phrases_negative, phrases_mask_negative = get_phrases_tensor(phrases_negative, tokenizer=tokenizer, vocab=vocab)
     phrases_2_crd, phrases_2_crd_mask = get_padded_examples(phrases_2_crd,
                                                             padding_value=0,
                                                             padding_dim=(
@@ -71,8 +96,11 @@ def collate_fn(batch, tokenizer, vocab):
         "pred_attr_prob": torch.tensor(batch["pred_attr_prob"], dtype=torch.float32),
         "pred_boxes_features": torch.tensor(batch["pred_boxes_features"], dtype=torch.float32),
         "pred_active_box_index": torch.tensor(batch["pred_active_box_index"], dtype=torch.long),
+        "pred_boxes_mask": torch.tensor(batch["pred_boxes_mask"], dtype=torch.bool),
         "phrases": phrases,
         "phrases_mask": phrases_mask,
+        "phrases_negative": phrases_negative,
+        "phrases_mask_negative": phrases_mask_negative,
         "phrases_2_crd": phrases_2_crd,
         "phrases_2_crd_mask": phrases_2_crd_mask,
     }
@@ -99,6 +127,8 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
                                                                        range(n_boxes_to_gen)]
     example["pred_attr_prob"] = example["pred_attr_prob"] + [[0] * n_boxes_class for i in range(n_boxes_to_gen)]
     example["pred_cls_prob"] = example["pred_cls_prob"] + [[0] * n_boxes_attr for i in range(n_boxes_to_gen)]
+
+    example['pred_boxes_mask'] = [True] * (n_boxes_to_keep - n_boxes_to_gen) + [False] * n_boxes_to_gen
 
     example["pred_active_box_index"] = [random.randrange(0, pred_n_boxes) for _ in range(n_active_box)]
 
