@@ -4,6 +4,7 @@ __defaults = {
     "batch_size": 64,
     "num_workers": 0,
     "prefetch_factor": 2,
+    "image_filepath": "data/refer/data/images",
     "data_filepath": "data/referit_raw/preprocessed",
     "train_idx_filepath": "data/referit_raw/train.txt",
     "valid_idx_filepath": "data/referit_raw/val.txt",

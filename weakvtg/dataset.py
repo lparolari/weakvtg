@@ -12,9 +12,10 @@ from weakvtg.utils import pivot
 
 
 class VtgDataset(Dataset):
-    def __init__(self, data_filepath: str, idx_filepath: str):
+    def __init__(self, image_filepath: str, data_filepath: str, idx_filepath: str):
         super().__init__()
 
+        self.image_filepath = image_filepath
         self.data_filepath = data_filepath
         self.idx_filepath = idx_filepath
         
