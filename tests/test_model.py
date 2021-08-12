@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from weakvtg.mask import get_synthetic_mask
 from weakvtg.model import get_image_features, get_phrases_features, create_phrases_embedding_network, \
-    create_phrases_recurrent_network
+    get_phrases_representation
 from weakvtg.vocabulary import get_vocab
 
 
@@ -54,7 +54,7 @@ def test_create_phrases_embedding_network():
     assert phrases_embedded.size() == torch.Size((2, 6, 300))
 
 
-def test_create_phrases_recurrent_network():
+def test_get_phrases_representation():
     vocab = get_vocab(collections.Counter({"the": 3, "pen": 1, "is": 2, "on": 1, "table": 1, "dog": 1, "running": 1}))
 
     phrases = torch.Tensor([[[1, 2, 3, 4, 1, 5], [1, 6, 3, 7, 0, 0]]]).long()
@@ -66,7 +66,7 @@ def test_create_phrases_recurrent_network():
 
     lstm = nn.LSTM(300, 50, num_layers=1, bidirectional=False, batch_first=False)
 
-    phrases_repr = create_phrases_recurrent_network(phrases_embedded, phrases_length, get_synthetic_mask(phrases_mask),
-                                                    features_size=50, recurrent_network=lstm)
+    phrases_repr = get_phrases_representation(phrases_embedded, phrases_length, get_synthetic_mask(phrases_mask),
+                                              out_features=50, recurrent_network=lstm)
 
     assert phrases_repr.size() == torch.Size((1, 2, 50))

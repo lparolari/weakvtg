@@ -13,8 +13,8 @@ from weakvtg.config import get_config
 from weakvtg.dataset import VtgDataset, collate_fn
 from weakvtg.loss import WeakVtgLoss
 from weakvtg.math import get_argmax, get_max
-from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_phrases_recurrent_network, \
-    create_image_embedding_network, init_rnn
+from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
+    get_phrases_representation, get_phrases_embedding
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
 from weakvtg.train import train, load_model
 from weakvtg.vocabulary import load_vocab
@@ -101,11 +101,15 @@ if __name__ == "__main__":
 
     phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=300, freeze=True)
 
-    lstm = init_rnn(nn.LSTM(300, 500, num_layers=1, bidirectional=False, batch_first=False))
-    phrases_recurrent_net = functools.partial(create_phrases_recurrent_network,
-                                              features_size=500, recurrent_network=lstm, device=device)
+    phrases_recurrent_net = init_rnn(nn.LSTM(300, 500, num_layers=1, bidirectional=False, batch_first=False))
 
-    image_embedding_network = create_image_embedding_network(2053, 500)
+    image_embedding_net = create_image_embedding_network(2053, 500)
+
+    _get_phrases_embedding = functools.partial(get_phrases_embedding, embedding_network=phrases_embedding_net)
+    _get_phrases_representation = functools.partial(get_phrases_representation,
+                                                    recurrent_network=phrases_recurrent_net,
+                                                    out_features=500,
+                                                    device=device)
 
     # setup dataloader
     collate_function = functools.partial(collate_fn, tokenizer=tokenizer, vocab=vocab)
@@ -119,8 +123,10 @@ if __name__ == "__main__":
     model = WeakVtgModel(
         phrases_embedding_net=phrases_embedding_net,
         phrases_recurrent_net=phrases_recurrent_net,
-        image_embedding_network=image_embedding_network,
-        f_similarity=F.cosine_similarity,
+        image_embedding_net=image_embedding_net,
+        get_phrases_embedding=_get_phrases_embedding,
+        get_phrases_representation=_get_phrases_representation,
+        f_similarity=F.cosine_similarity
     )
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(device=device)

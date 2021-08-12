@@ -33,14 +33,19 @@ class MockModel(Model):
 
 
 class WeakVtgModel(Model):
-    def __init__(self, phrases_embedding_net, phrases_recurrent_net, image_embedding_network,
+    def __init__(self, phrases_embedding_net, phrases_recurrent_net, image_embedding_net,
+                 get_phrases_embedding, get_phrases_representation,
                  f_similarity):
         super().__init__()
 
         self.phrases_embedding_net = phrases_embedding_net
         self.phrases_recurrent_net = phrases_recurrent_net
+        self.image_embedding_net = image_embedding_net
+
+        self.get_phrases_embedding = get_phrases_embedding
+        self.get_phrases_representation = get_phrases_representation
+
         self.f_similarity = f_similarity
-        self.image_embedding_network = image_embedding_network
 
     def forward(self, batch):
         pred_n_boxes = batch["pred_n_boxes"]                    # [b]
@@ -57,20 +62,21 @@ class WeakVtgModel(Model):
         n_ph_neg = phrases_negative.size()[1]
 
         _get_phrases_features = functools.partial(get_phrases_features,
-                                                  embedding_network=self.phrases_embedding_net,
-                                                  recurrent_network=self.phrases_recurrent_net)
+                                                  get_phrases_embedding=self.get_phrases_embedding,
+                                                  get_phrases_representation=self.get_phrases_representation)
+
         _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
 
         # extract positive/negative features
         img_x_positive = get_image_features(boxes, boxes_features)
-        img_x_positive = self.image_embedding_network(img_x_positive)
+        img_x_positive = self.image_embedding_net(img_x_positive)
         img_x_positive = img_x_positive.unsqueeze(-3).repeat(1, n_ph_pos, 1, 1)
 
         phrases_x_positive = _get_phrases_features(phrases, phrases_mask)
         phrases_x_positive = phrases_x_positive.unsqueeze(-2).repeat(1, 1, n_boxes, 1)
 
         img_x_negative = get_image_features(boxes, boxes_features)
-        img_x_negative = self.image_embedding_network(img_x_negative)
+        img_x_negative = self.image_embedding_net(img_x_negative)
         img_x_negative = img_x_negative.unsqueeze(-3).repeat(1, n_ph_neg, 1, 1)
 
         phrases_x_negative = _get_phrases_features(phrases_negative, phrases_mask_negative)
@@ -118,24 +124,62 @@ def get_image_features(boxes, boxes_feat):
     return torch.cat([boxes_feat, boxes, area], dim=-1)
 
 
-def get_phrases_features(phrases, phrases_mask, embedding_network, recurrent_network):
+def get_phrases_embedding(phrases, embedding_network):
+    phrases_embedding = embedding_network(phrases)  # [*, d1, d2, fp]
+    return phrases_embedding
+
+
+def get_phrases_representation(phrases_emb, phrases_length, mask, out_features, recurrent_network, device=None):
+    batch_size = phrases_emb.size()[0]
+    max_n_ph = phrases_emb.size()[1]
+    max_ph_len = phrases_emb.size()[2]
+
+    out_feats_dim = out_features
+
+    # [max_ph_len, b*max_n_ph, 300]
+    phrases_emb = phrases_emb.view(-1, phrases_emb.size()[-2], phrases_emb.size()[-1])
+    phrases_emb = phrases_emb.permute(1, 0, 2).contiguous()
+
+    # note: we need to fix the bug about phrases with lengths 0. On cpu required by torch
+    phrases_length_clamp = phrases_length.view(-1).clamp(min=1).cpu()
+    phrases_pack_emb = rnn.pack_padded_sequence(phrases_emb, phrases_length_clamp, enforce_sorted=False)
+    phrases_x_o, (phrases_x_h, phrases_x_c) = recurrent_network(phrases_pack_emb)
+    phrases_x_o = rnn.pad_packed_sequence(phrases_x_o, batch_first=False)  # (values, length)
+
+    # due to padding we need to get indexes in this way. On device now.
+    idx = (phrases_x_o[1] - 1).unsqueeze(0).unsqueeze(-1).repeat(1, 1, phrases_x_o[0].size()[2]).to(device)
+
+    phrases_x = torch.gather(phrases_x_o[0], 0, idx)  # [1, b*max_n_ph, 2048]
+    phrases_x = phrases_x.permute(1, 0, 2).contiguous().unsqueeze(0)  # [b*max_n_ph, 2048]
+
+    # back to batch size dimension
+    phrases_x = phrases_x.squeeze(1).view(batch_size, max_n_ph, out_feats_dim)  # [b, max_n_ph, out_feats_dim]
+    phrases_x = torch.masked_fill(phrases_x, mask == 0, 0)  # boolean mask required
+
+    # normalize features
+    phrases_x_norm = F.normalize(phrases_x, p=1, dim=-1)
+
+    return phrases_x_norm
+
+
+def get_phrases_features(phrases, phrases_mask, get_phrases_embedding, get_phrases_representation):
     """
     Embed phrases and apply LSTM network on embeddings.
 
     :param phrases: A [*, d1, d2] tensor
     :param phrases_mask: A [*, d1, d2] tensor
-    :param embedding_network: A function of phrases tensor
-    :param recurrent_network: A function of embedding tensor, phrases length and synthetic mask
+    :param get_phrases_embedding: A function of phrases tensor
+    :param get_phrases_representation: A function of embedding tensor, phrases length and synthetic mask
     :return: A [*, d1, emb_p] tensor
     """
     mask = get_synthetic_mask(phrases_mask)
 
     phrases_length = torch.sum(phrases_mask.int(), dim=-1)  # [*, d1]
 
-    phrases_embedding = embedding_network(phrases)  # [*, d1, d2, fp]
+    phrases_embedding = get_phrases_embedding(phrases)  # [*, d1, d2, fp]
+    phrases_representation = get_phrases_representation(phrases_embedding, phrases_length, mask)  # [*, d1, emb_p]
 
-    phrases_x = recurrent_network(phrases_embedding, phrases_length, mask)  # [*, d1, emb_p]
-    phrases_x = torch.masked_fill(phrases_x, mask == 0, value=0)
+    phrases_x = torch.masked_fill(phrases_representation, mask == 0, value=0)
 
     return phrases_x
 
@@ -171,37 +215,7 @@ def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
     return embedding_matrix
 
 
-def create_phrases_recurrent_network(phrases_emb, phrases_length, mask, features_size, recurrent_network, device=None):
-    batch_size = phrases_emb.size()[0]
-    max_n_ph = phrases_emb.size()[1]
-    max_ph_len = phrases_emb.size()[2]
 
-    out_feats_dim = features_size
-
-    # [max_ph_len, b*max_n_ph, 300]
-    phrases_emb = phrases_emb.view(-1, phrases_emb.size()[-2], phrases_emb.size()[-1])
-    phrases_emb = phrases_emb.permute(1, 0, 2).contiguous()
-
-    # note: we need to fix the bug about phrases with lengths 0. On cpu required by torch
-    phrases_length_clamp = phrases_length.view(-1).clamp(min=1).cpu()
-    phrases_pack_emb = rnn.pack_padded_sequence(phrases_emb, phrases_length_clamp, enforce_sorted=False)
-    phrases_x_o, (phrases_x_h, phrases_x_c) = recurrent_network(phrases_pack_emb)
-    phrases_x_o = rnn.pad_packed_sequence(phrases_x_o, batch_first=False)  # (values, length)
-
-    # due to padding we need to get indexes in this way. On device now.
-    idx = (phrases_x_o[1] - 1).unsqueeze(0).unsqueeze(-1).repeat(1, 1, phrases_x_o[0].size()[2]).to(device)
-
-    phrases_x = torch.gather(phrases_x_o[0], 0, idx)  # [1, b*max_n_ph, 2048]
-    phrases_x = phrases_x.permute(1, 0, 2).contiguous().unsqueeze(0)  # [b*max_n_ph, 2048]
-
-    # back to batch size dimension
-    phrases_x = phrases_x.squeeze(1).view(batch_size, max_n_ph, out_feats_dim)  # [b, max_n_ph, out_feats_dim]
-    phrases_x = torch.masked_fill(phrases_x, mask == 0, 0)  # boolean mask required
-
-    # normalize features
-    phrases_x_norm = F.normalize(phrases_x, p=1, dim=-1)
-
-    return phrases_x_norm
 
 
 def init_rnn(rnn):

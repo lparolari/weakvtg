@@ -98,6 +98,25 @@ def train(train_loader, valid_loader, model, optimizer, criterion,
     return train_results, valid_results
 
 
+def test_example(loader, model, optimizer, criterion):
+    for i, batch in enumerate(loader):
+        idx = batch["id"]
+        idx_negative = batch["id_negative"]
+        sentence = batch["sentence"]
+
+        # phrases = batch["phrases"]
+        # phrases
+        # phrases_negative = batch["phrases_negative"]
+
+        optimizer.zero_grad()
+
+        output = model(batch)
+
+        loss, iou, accuracy, p_accuracy = criterion(batch, output)
+
+        print(f"Example {idx}/{idx_negative}")
+
+
 def save_model(model, epoch, optimizer=None, scheduler=None, folder=None, suffix=None):
     if folder is None:
         folder = tempfile.gettempdir()
