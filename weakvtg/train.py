@@ -30,21 +30,23 @@ def epoch(loader, model, optimizer, criterion, train=True):
             loss.backward()
             optimizer.step()
 
-        total_examples += get_batch_size(batch)
-
-        total_loss += loss.item()
-        total_accuracy += accuracy.item()
-        total_p_accuracy += p_accuracy.item()
-
         # computing some statistics
+        bs = get_batch_size(batch)
+
+        total_examples += bs
+
+        total_loss += loss.item() * bs
+        total_accuracy += accuracy.item() * bs
+        total_p_accuracy += p_accuracy.item() * bs
+
         fancy_batch_no = i + 1
         end_time = time.time()
         eta = get_fancy_eta(start_time, end_time, current=fancy_batch_no, total=n_batch)
         start_time = end_time
         logging.debug(f"{fancy_mode} {fancy_batch_no}/{n_batch}, "
-                      f"loss: {pp(loss.item())}, "
-                      f"accuracy: {pp(accuracy.item())}, "
-                      f"p_accuracy: {pp(p_accuracy.item())} | ETA: {eta}")
+                      f"loss: {pp(total_loss / total_examples)}, "
+                      f"accuracy: {pp(total_accuracy / total_examples)}, "
+                      f"p_accuracy: {pp(total_p_accuracy / total_examples)} | ETA: {eta}")
 
     loss = total_loss / total_examples
     accuracy = percent(total_accuracy / total_examples)
