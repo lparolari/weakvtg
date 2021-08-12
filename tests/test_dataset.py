@@ -39,11 +39,12 @@ def caption_example():
     }
 
 
-def test_preprocess_example(image_example, caption_example):
-    expected = ["id", "sentence", "phrases", "n_phrases", "ewiser_chunks", "ewiser_heads", "ewiser_begin", "ewiser_end",
-                "ewiser_n", "ewiser_yago_entities", "phrases_2_crd", "image_w", "image_h", "image_d",
-                "image_boxes_coordinates", "pred_n_boxes", "pred_boxes", "pred_cls_prob", "pred_attr_prob",
-                "pred_boxes_features", "pred_active_box_index"]
-    actual = process_example({**caption_example, **image_example}).keys()
+processed_keys = ["id", "sentence", "phrases", "n_phrases", "ewiser_chunks", "ewiser_heads", "ewiser_begin",
+                  "ewiser_end", "ewiser_n", "ewiser_yago_entities", "phrases_2_crd", "image_w", "image_h", "image_d",
+                  "image_boxes_coordinates", "pred_n_boxes", "pred_boxes", "pred_cls_prob", "pred_attr_prob",
+                  "pred_boxes_features", "pred_active_box_index", "pred_boxes_mask"]
 
-    assert all([k in expected for k in actual])
+
+@pytest.mark.parametrize("key", processed_keys)
+def test_preprocess_example(image_example, caption_example, key):
+    assert key in process_example({**caption_example, **image_example}).keys()
