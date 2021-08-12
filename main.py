@@ -12,28 +12,11 @@ from weakvtg.config import get_config
 from weakvtg.dataset import VtgDataset, collate_fn
 from weakvtg.loss import WeakVtgLoss
 from weakvtg.math import get_argmax, get_max
-from weakvtg.model import MockModel, WeakVtgModel, create_phrases_embedding_network, create_phrases_recurrent_network, \
+from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_phrases_recurrent_network, \
     create_image_embedding_network
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
 from weakvtg.train import train
 from weakvtg.vocabulary import load_vocab
-
-
-class MockTensor:
-    def __init__(self, value):
-        self.value = value
-
-    def __format__(self, format_spec):
-        return f"{self.value:{format_spec}}"
-
-    def __str__(self):
-        return str(self.value)
-
-    def item(self):
-        return self.value
-
-    def backward(self):
-        pass
 
 
 def parse_args():
