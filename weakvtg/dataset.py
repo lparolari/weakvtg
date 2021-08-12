@@ -77,14 +77,17 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_negative = batch["phrases_negative"]  # [b, n_ph-, n_words-]
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
 
+    def _get_padded_phrases_2_crd(phrases_2_crd):
+        dim = (get_number_examples(phrases_2_crd),
+               get_max_length_examples(phrases_2_crd),
+               get_max_length_phrases(phrases_2_crd))
+
+        # please note that `padding_value=0` produces an invalid mask, however, this mask is not used
+        return get_padded_examples(phrases_2_crd, padding_value=0, dtype=torch.float, padding_dim=dim)
+
     phrases, phrases_mask = get_phrases_tensor(phrases, tokenizer=tokenizer, vocab=vocab)
     phrases_negative, phrases_mask_negative = get_phrases_tensor(phrases_negative, tokenizer=tokenizer, vocab=vocab)
-    phrases_2_crd, phrases_2_crd_mask = get_padded_examples(phrases_2_crd,
-                                                            padding_value=0,
-                                                            padding_dim=(
-                                                                get_number_examples(phrases_2_crd),
-                                                                get_max_length_examples(phrases_2_crd),
-                                                                get_max_length_phrases(phrases_2_crd)))
+    phrases_2_crd, _ = _get_padded_phrases_2_crd(phrases_2_crd)
 
     return {
         "id": torch.tensor(batch["id"], dtype=torch.long),
@@ -103,7 +106,6 @@ def collate_fn(batch, tokenizer, vocab):
         "phrases_negative": phrases_negative,
         "phrases_mask_negative": phrases_mask_negative,
         "phrases_2_crd": phrases_2_crd,
-        "phrases_2_crd_mask": phrases_2_crd_mask,
     }
 
 
