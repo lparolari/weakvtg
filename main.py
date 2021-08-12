@@ -31,6 +31,8 @@ def parse_args():
     parser.add_argument("--valid-idx-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--device-name", type=str, default=None)
+    parser.add_argument("--save-folder", type=str, default=None)
+    parser.add_argument("--suffix", type=str, default=None)
 
     parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
     parser.add_argument("--log-file", dest="log_file", type=str, default=None, help="Log filename")
@@ -56,6 +58,8 @@ if __name__ == "__main__":
         "valid_idx_filepath": args.valid_idx_filepath,
         "learning_rate": args.learning_rate,
         "device_name": args.device_name,
+        "save_folder": args.save_folder,
+        "suffix": args.suffix,
     })
 
     batch_size = config["batch_size"]
@@ -66,6 +70,8 @@ if __name__ == "__main__":
     valid_idx_filepath = config["valid_idx_filepath"]
     learning_rate = config["learning_rate"]
     device_name = config["device_name"]
+    save_folder = config["save_folder"]
+    suffix = config["suffix"]
 
     device = torch.device(device_name)
 
@@ -117,7 +123,8 @@ if __name__ == "__main__":
     criterion = WeakVtgLoss(device=device)
 
     # start the training
-    _, valid_history = train(train_loader, valid_loader, model, optimizer, criterion)
+    _, valid_history = train(train_loader, valid_loader, model, optimizer, criterion,
+                             save_folder=save_folder, suffix=suffix)
 
     # log data
     valid_loss = valid_history["loss"]

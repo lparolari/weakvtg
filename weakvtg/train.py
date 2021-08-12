@@ -1,6 +1,8 @@
 import logging
+import tempfile
 import time
 
+import torch
 import wandb
 
 from weakvtg.prettyprint import pp
@@ -57,13 +59,14 @@ def epoch(loader, model, optimizer, criterion, train=True):
     return {"loss": loss, "accuracy": accuracy, "p_accuracy": p_accuracy}
 
 
-def train(train_loader, valid_loader, model, optimizer, criterion, n_epochs=15):
+def train(train_loader, valid_loader, model, optimizer, criterion,
+          n_epochs=15, start_epoch=0, save_folder=None, suffix=None):
     train_results = []
     valid_results = []
 
     start_time = time.time()
 
-    for i in range(n_epochs):
+    for i in range(start_epoch, n_epochs):
         logging.info(f"Start epoch {i + 1}")
 
         train_out = epoch(train_loader, model, optimizer, criterion, train=True)
@@ -84,9 +87,32 @@ def train(train_loader, valid_loader, model, optimizer, criterion, n_epochs=15):
         wandb.log({**map_dict(train_out, key_fn=lambda x: f"train_{x}"),
                    **map_dict(valid_out, key_fn=lambda x: f"valid_{x}")})
 
+        # save model on file
+        save_model(model, fancy_epoch_no, optimizer=optimizer, folder=save_folder, suffix=suffix)
+
     train_results = pivot(train_results)
     valid_results = pivot(valid_results)
 
     logging.info(f"Training completed.")
 
     return train_results, valid_results
+
+
+def save_model(model, epoch, optimizer=None, scheduler=None, folder=None, suffix=None):
+    if folder is None:
+        folder = tempfile.gettempdir()
+    if suffix is None:
+        suffix = "default"
+
+    filepath = f"{folder}/model_{suffix}_{epoch}.pth"
+
+    data = {
+        "epoch": epoch,
+        "model_state_dict": model.state_dict(),
+        **({"optimizer_state_dict": optimizer.state_dict()} if optimizer is not None else {}),
+        **({"scheduler_state_dict": scheduler.state_dict()} if scheduler is not None else {}),
+    }
+
+    torch.save(data, filepath)
+
+    logging.info(f"Model saved to {filepath}")

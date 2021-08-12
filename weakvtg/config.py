@@ -1,3 +1,5 @@
+import tempfile
+
 __defaults = {
     "batch_size": 64,
     "num_workers": 0,
@@ -7,6 +9,8 @@ __defaults = {
     "valid_idx_filepath": "data/referit_raw/val.txt",
     "learning_rate": 0.001,
     "device_name": "cpu",
+    "save_folder": tempfile.gettempdir(),
+    "suffix": "default",
 }
 
 
