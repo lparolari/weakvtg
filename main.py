@@ -28,6 +28,7 @@ def parse_args():
     parser.add_argument("--prefetch-factor", type=int, default=None)
     parser.add_argument("--data-filepath", type=str, default=None)
     parser.add_argument("--train-idx-filepath", type=str, default=None)
+    parser.add_argument("--valid-idx-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
 
     parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
@@ -51,6 +52,7 @@ if __name__ == "__main__":
         "prefetch_factor": args.prefetch_factor,
         "data_filepath": args.data_filepath,
         "train_idx_filepath": args.train_idx_filepath,
+        "valid_idx_filepath": args.valid_idx_filepath,
         "learning_rate": args.learning_rate,
     })
 
@@ -59,6 +61,7 @@ if __name__ == "__main__":
     prefetch_factor = config["prefetch_factor"]
     data_filepath = config["data_filepath"]
     train_idx_filepath = config["train_idx_filepath"]
+    valid_idx_filepath = config["valid_idx_filepath"]
     learning_rate = config["learning_rate"]
 
     device = None
@@ -71,7 +74,8 @@ if __name__ == "__main__":
     logging.info(f"Model started with following parameters: {config}")
 
     # create dataset adapter
-    dataset = VtgDataset(data_filepath=data_filepath, idx_filepath=train_idx_filepath)
+    train_dataset = VtgDataset(data_filepath=data_filepath, idx_filepath=train_idx_filepath)
+    valid_dataset = VtgDataset(data_filepath=data_filepath, idx_filepath=valid_idx_filepath)
 
     # create core tools
     # * tokenizer
@@ -94,9 +98,10 @@ if __name__ == "__main__":
     # setup dataloader
     collate_function = functools.partial(collate_fn, tokenizer=tokenizer, vocab=vocab)
 
-    train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, collate_fn=collate_function,
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_function,
                                                num_workers=num_workers, prefetch_factor=prefetch_factor)
-    valid_loader = train_loader
+    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_function,
+                                               num_workers=num_workers, prefetch_factor=prefetch_factor)
 
     # create core tools for training
     model = WeakVtgModel(

@@ -4,6 +4,7 @@ __defaults = {
     "prefetch_factor": 2,
     "data_filepath": "data/referit_raw/preprocessed",
     "train_idx_filepath": "data/referit_raw/train.txt",
+    "valid_idx_filepath": "data/referit_raw/val.txt",
     "learning_rate": 0.001,
 }
 
