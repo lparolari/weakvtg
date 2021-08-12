@@ -116,3 +116,21 @@ def save_model(model, epoch, optimizer=None, scheduler=None, folder=None, suffix
     torch.save(data, filepath)
 
     logging.info(f"Model saved to {filepath}")
+
+
+def load_model(filepath, model, optimizer=None, scheduler=None, device=None):
+    checkpoint = torch.load(filepath, map_location=device)
+
+    model.load_state_dict(checkpoint["model_state_dict"])
+
+    if optimizer is not None:
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+    if scheduler is not None:
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+
+    start_epoch = checkpoint["epoch"]
+
+    logging.info(f"Loaded model from {filepath}")
+
+    return start_epoch

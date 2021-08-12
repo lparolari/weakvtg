@@ -16,7 +16,7 @@ from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_phrases_recurrent_network, \
     create_image_embedding_network, init_rnn
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
-from weakvtg.train import train
+from weakvtg.train import train, load_model
 from weakvtg.vocabulary import load_vocab
 
 
@@ -33,6 +33,7 @@ def parse_args():
     parser.add_argument("--device-name", type=str, default=None)
     parser.add_argument("--save-folder", type=str, default=None)
     parser.add_argument("--suffix", type=str, default=None)
+    parser.add_argument("--restore", type=str, default=None)
 
     parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
     parser.add_argument("--log-file", dest="log_file", type=str, default=None, help="Log filename")
@@ -60,6 +61,7 @@ if __name__ == "__main__":
         "device_name": args.device_name,
         "save_folder": args.save_folder,
         "suffix": args.suffix,
+        "restore": args.restore,
     })
 
     batch_size = config["batch_size"]
@@ -72,6 +74,7 @@ if __name__ == "__main__":
     device_name = config["device_name"]
     save_folder = config["save_folder"]
     suffix = config["suffix"]
+    restore = config["restore"]
 
     device = torch.device(device_name)
 
@@ -122,9 +125,13 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(device=device)
 
+    start_epoch = 0
+    if restore is not None:
+        start_epoch = load_model(restore, model, optimizer, device=device)
+
     # start the training
     _, valid_history = train(train_loader, valid_loader, model, optimizer, criterion,
-                             save_folder=save_folder, suffix=suffix)
+                             start_epoch=start_epoch, save_folder=save_folder, suffix=suffix)
 
     # log data
     valid_loss = valid_history["loss"]

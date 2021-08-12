@@ -11,6 +11,7 @@ __defaults = {
     "device_name": "cpu",
     "save_folder": tempfile.gettempdir(),
     "suffix": "default",
+    "restore": None,
 }
 
 
