@@ -88,6 +88,7 @@ def collate_fn(batch, tokenizer, vocab):
 
     return {
         "id": torch.tensor(batch["id"], dtype=torch.long),
+        "id_negative": torch.tensor(batch["id_negative"], dtype=torch.long),
         "image_w": torch.tensor(batch["image_w"], dtype=torch.long),
         "image_h": torch.tensor(batch["image_h"], dtype=torch.long),
         "pred_n_boxes": torch.tensor(batch["pred_n_boxes"], dtype=torch.int),
