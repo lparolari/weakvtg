@@ -30,6 +30,7 @@ def parse_args():
     parser.add_argument("--train-idx-filepath", type=str, default=None)
     parser.add_argument("--valid-idx-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
+    parser.add_argument("--device-name", type=str, default=None)
 
     parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
     parser.add_argument("--log-file", dest="log_file", type=str, default=None, help="Log filename")
@@ -54,6 +55,7 @@ if __name__ == "__main__":
         "train_idx_filepath": args.train_idx_filepath,
         "valid_idx_filepath": args.valid_idx_filepath,
         "learning_rate": args.learning_rate,
+        "device_name": args.device_name,
     })
 
     batch_size = config["batch_size"]
@@ -63,8 +65,9 @@ if __name__ == "__main__":
     train_idx_filepath = config["train_idx_filepath"]
     valid_idx_filepath = config["valid_idx_filepath"]
     learning_rate = config["learning_rate"]
+    device_name = config["device_name"]
 
-    device = None
+    device = torch.device(device_name)
 
     wandb.init(project='weakvtg', entity='vtkel-solver', mode="online" if args.use_wandb else "disabled")
     wandb.config.update(config)
@@ -111,7 +114,7 @@ if __name__ == "__main__":
         f_similarity=F.cosine_similarity,
     )
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
-    criterion = WeakVtgLoss(torch.device("cpu"))
+    criterion = WeakVtgLoss(device=device)
 
     # start the training
     _, valid_history = train(train_loader, valid_loader, model, optimizer, criterion)

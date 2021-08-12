@@ -6,6 +6,7 @@ __defaults = {
     "train_idx_filepath": "data/referit_raw/train.txt",
     "valid_idx_filepath": "data/referit_raw/val.txt",
     "learning_rate": 0.001,
+    "device_name": "cpu",
 }
 
 
