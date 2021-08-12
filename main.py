@@ -110,7 +110,7 @@ if __name__ == "__main__":
         image_embedding_network=image_embedding_network,
         f_similarity=F.cosine_similarity,
     )
-    optimizer = torch.optim.Adam([torch.rand(2, 2, 4)], learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(torch.device("cpu"))
 
     # start the training
