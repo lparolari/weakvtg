@@ -2,6 +2,7 @@ import argparse
 import functools
 import logging
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -38,6 +39,9 @@ def parse_args():
 
 if __name__ == "__main__":
     print("Hello, World!")
+
+    np.random.seed(42)
+    torch.manual_seed(42)
 
     args = parse_args()
 
