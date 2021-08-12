@@ -33,21 +33,28 @@ class MockModel(Model):
 
 
 class WeakVtgModel(Model):
-    def __init__(self, phrases_embedding_net=identity, phrases_recurrent_net=identity, f_similarity=None):
+    def __init__(self, phrases_embedding_net, phrases_recurrent_net, image_embedding_network,
+                 f_similarity):
         super().__init__()
 
         self.phrases_embedding_net = phrases_embedding_net
         self.phrases_recurrent_net = phrases_recurrent_net
         self.f_similarity = f_similarity
+        self.image_embedding_network = image_embedding_network
 
     def forward(self, batch):
+        pred_n_boxes = batch["pred_n_boxes"]                    # [b]
         boxes = batch["pred_boxes"]                             # [b, n_boxes, 4]
-        boxes_mask = batch["boxes_mask"]                        # [b, n_boxes, 1]
+        boxes_mask = batch["pred_boxes_mask"]                   # [b, n_boxes, 1]
         boxes_features = batch["pred_boxes_features"]           # [b, n_boxes, 2048]
         phrases = batch["phrases"]                              # [b, n_ph+, n_words+]
         phrases_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
         phrases_negative = batch["phrases_negative"]            # [b, n_ph-, n_words-]
         phrases_mask_negative = batch["phrases_mask_negative"]  # [b, n_ph-, n_words-]
+
+        n_boxes = pred_n_boxes[0]
+        n_ph_pos = phrases.size()[1]
+        n_ph_neg = phrases_negative.size()[1]
 
         _get_phrases_features = functools.partial(get_phrases_features,
                                                   embedding_network=self.phrases_embedding_net,
@@ -56,24 +63,32 @@ class WeakVtgModel(Model):
 
         # extract positive/negative features
         img_x_positive = get_image_features(boxes, boxes_features)
+        img_x_positive = self.image_embedding_network(img_x_positive)
+        img_x_positive = img_x_positive.unsqueeze(-3).repeat(1, n_ph_pos, 1, 1)
+
         phrases_x_positive = _get_phrases_features(phrases, phrases_mask)
+        phrases_x_positive = phrases_x_positive.unsqueeze(-2).repeat(1, 1, n_boxes, 1)
 
         img_x_negative = get_image_features(boxes, boxes_features)
+        img_x_negative = self.image_embedding_network(img_x_negative)
+        img_x_negative = img_x_negative.unsqueeze(-3).repeat(1, n_ph_neg, 1, 1)
+
         phrases_x_negative = _get_phrases_features(phrases_negative, phrases_mask_negative)
+        phrases_x_negative = phrases_x_negative.unsqueeze(-2).repeat(1, 1, n_boxes, 1)
 
         # compute positive/negative logits and mask
-        positive_logits = predict_logits(img_x_positive, phrases_x_positive)
+        positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
         positive_logits = torch.masked_fill(positive_logits, get_synthetic_mask(phrases_mask) == 0, value=-1)
         positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=0)
 
-        negative_logits = predict_logits(img_x_negative, phrases_x_negative)
+        negative_logits = predict_logits(img_x_negative, phrases_x_negative, f_similarity=self.f_similarity)
         negative_logits = torch.masked_fill(negative_logits, get_synthetic_mask(phrases_mask_negative) == 0, value=-1)
         negative_logits = torch.masked_fill(negative_logits, _boxes_mask == 0, value=0)
 
         return (positive_logits, negative_logits),
 
 
-def predict_logits(img_x, phrases_x, f_similarity=None):
+def predict_logits(img_x, phrases_x, f_similarity):
     """
     Compute given similarity measure over the last dimension (features) of `img_x` and `phrases_x`.
 
@@ -82,9 +97,6 @@ def predict_logits(img_x, phrases_x, f_similarity=None):
     :param f_similarity: A similarity measure between [*, d3] tensors
     :return: A `[*, d1, d2]` tensor
     """
-    if f_similarity is None:
-        f_similarity = F.cosine_similarity
-
     similarity = f_similarity(img_x, phrases_x, dim=-1)
 
     return similarity
@@ -190,3 +202,25 @@ def create_phrases_recurrent_network(phrases_emb, phrases_length, mask, features
     phrases_x_norm = F.normalize(phrases_x, p=1, dim=-1)
 
     return phrases_x_norm
+
+
+def create_image_embedding_network(in_features, out_features):
+    def create_layer(in_features, out_features):
+        linear = nn.Linear(in_features, out_features)
+        nn.init.xavier_normal_(linear.weight)
+        nn.init.zeros_(linear.bias)
+        return linear
+
+    l1 = create_layer(in_features, in_features)
+    l2 = create_layer(in_features, in_features)
+    l3 = create_layer(in_features, out_features)
+    act1 = nn.LeakyReLU()
+    act2 = nn.LeakyReLU()
+
+    def f(x):
+        x = act1(l1(x))
+        x = act2(l2(x))
+        x = l3(x)
+        return x
+
+    return f
