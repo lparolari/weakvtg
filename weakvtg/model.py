@@ -125,12 +125,48 @@ def get_image_features(boxes, boxes_feat):
     return torch.cat([boxes_feat, boxes, area], dim=-1)
 
 
+def get_image_representation(img_x, embedding_net):
+    """
+    Return image representation (i.e., semantic features) for image features given embedding network.
+    """
+    return embedding_net(img_x)
+
+
+def get_phrases_features(phrases, phrases_mask, get_phrases_embedding, get_phrases_representation):
+    """
+    Embed phrases and apply LSTM network on embeddings.
+
+    :param phrases: A [*, d1, d2] tensor
+    :param phrases_mask: A [*, d1, d2] tensor
+    :param get_phrases_embedding: A function of phrases tensor
+    :param get_phrases_representation: A function of embedding tensor, phrases length and synthetic mask
+    :return: A [*, d1, emb_p] tensor
+    """
+    mask = get_synthetic_mask(phrases_mask)
+
+    phrases_length = torch.sum(phrases_mask.int(), dim=-1)  # [*, d1]
+
+    phrases_embedding = get_phrases_embedding(phrases)  # [*, d1, d2, fp]
+    phrases_representation = get_phrases_representation(phrases_embedding, phrases_length, mask)  # [*, d1, emb_p]
+
+    phrases_x = torch.masked_fill(phrases_representation, mask == 0, value=0)
+
+    return phrases_x
+
+
 def get_phrases_embedding(phrases, embedding_network):
+    """
+    Return phrases embedding given the embedding network.
+    """
     phrases_embedding = embedding_network(phrases)  # [*, d1, d2, fp]
     return phrases_embedding
 
 
 def get_phrases_representation(phrases_emb, phrases_length, mask, out_features, recurrent_network, device=None):
+    """
+    Return phrases representation from phrases features (i.e., embeddings), phrases length and mask given a
+    recurrent network.
+    """
     batch_size = phrases_emb.size()[0]
     max_n_ph = phrases_emb.size()[1]
     max_ph_len = phrases_emb.size()[2]
@@ -161,32 +197,6 @@ def get_phrases_representation(phrases_emb, phrases_length, mask, out_features, 
     phrases_x_norm = F.normalize(phrases_x, p=1, dim=-1)
 
     return phrases_x_norm
-
-
-def get_phrases_features(phrases, phrases_mask, get_phrases_embedding, get_phrases_representation):
-    """
-    Embed phrases and apply LSTM network on embeddings.
-
-    :param phrases: A [*, d1, d2] tensor
-    :param phrases_mask: A [*, d1, d2] tensor
-    :param get_phrases_embedding: A function of phrases tensor
-    :param get_phrases_representation: A function of embedding tensor, phrases length and synthetic mask
-    :return: A [*, d1, emb_p] tensor
-    """
-    mask = get_synthetic_mask(phrases_mask)
-
-    phrases_length = torch.sum(phrases_mask.int(), dim=-1)  # [*, d1]
-
-    phrases_embedding = get_phrases_embedding(phrases)  # [*, d1, d2, fp]
-    phrases_representation = get_phrases_representation(phrases_embedding, phrases_length, mask)  # [*, d1, emb_p]
-
-    phrases_x = torch.masked_fill(phrases_representation, mask == 0, value=0)
-
-    return phrases_x
-
-
-def get_image_representation(img_x, embedding_net):
-    return embedding_net(img_x)
 
 
 def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
