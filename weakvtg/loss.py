@@ -17,10 +17,10 @@ class WeakVtgLoss(nn.Module):
     def forward(self, batch, output):
         boxes = batch["pred_boxes"]
         phrases_2_crd = batch["phrases_2_crd"]
-        phrases = batch["phrases"]
         phrases_mask = batch["phrases_mask"]
+        phrases_mask_negative = batch["phrases_mask_negative"]
         phrases_synthetic = get_synthetic_mask(phrases_mask)
-        phrases_synthetic_negative = get_synthetic_mask(phrases_mask)  # TODO
+        phrases_synthetic_negative = get_synthetic_mask(phrases_mask_negative)
 
         (predicted_score_positive, predicted_score_negative) = output[0]  # [b, n_chunks, n_boxes]
 
