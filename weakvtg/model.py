@@ -64,19 +64,20 @@ class WeakVtgModel(Model):
         _get_phrases_features = functools.partial(get_phrases_features,
                                                   get_phrases_embedding=self.get_phrases_embedding,
                                                   get_phrases_representation=self.get_phrases_representation)
+        _get_image_representation = functools.partial(get_image_representation, embedding_net=self.image_embedding_net)
 
         _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
 
         # extract positive/negative features
         img_x_positive = get_image_features(boxes, boxes_features)
-        img_x_positive = self.image_embedding_net(img_x_positive)
+        img_x_positive = _get_image_representation(img_x_positive)
         img_x_positive = img_x_positive.unsqueeze(-3).repeat(1, n_ph_pos, 1, 1)
 
         phrases_x_positive = _get_phrases_features(phrases, phrases_mask)
         phrases_x_positive = phrases_x_positive.unsqueeze(-2).repeat(1, 1, n_boxes, 1)
 
         img_x_negative = get_image_features(boxes, boxes_features)
-        img_x_negative = self.image_embedding_net(img_x_negative)
+        img_x_negative = _get_image_representation(img_x_negative)
         img_x_negative = img_x_negative.unsqueeze(-3).repeat(1, n_ph_neg, 1, 1)
 
         phrases_x_negative = _get_phrases_features(phrases_negative, phrases_mask_negative)
@@ -184,6 +185,10 @@ def get_phrases_features(phrases, phrases_mask, get_phrases_embedding, get_phras
     return phrases_x
 
 
+def get_image_representation(img_x, embedding_net):
+    return embedding_net(img_x)
+
+
 def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
     vocab_size = len(vocab)
     out_of_vocabulary = 0
@@ -215,7 +220,20 @@ def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
     return embedding_matrix
 
 
+def create_image_embedding_network(in_features, out_features):
+    def create_layer(in_features, out_features):
+        linear = nn.Linear(in_features, out_features)
+        nn.init.xavier_normal_(linear.weight)
+        nn.init.zeros_(linear.bias)
+        return linear
 
+    return nn.Sequential(
+        create_layer(in_features, in_features),
+        nn.LeakyReLU(),
+        create_layer(in_features, in_features),
+        nn.LeakyReLU(),
+        create_layer(in_features, out_features),
+    )
 
 
 def init_rnn(rnn):
@@ -225,25 +243,3 @@ def init_rnn(rnn):
         elif 'weight' in name:
             nn.init.xavier_normal_(param)
     return rnn
-
-
-def create_image_embedding_network(in_features, out_features):
-    def create_layer(in_features, out_features):
-        linear = nn.Linear(in_features, out_features)
-        nn.init.xavier_normal_(linear.weight)
-        nn.init.zeros_(linear.bias)
-        return linear
-
-    l1 = create_layer(in_features, in_features)
-    l2 = create_layer(in_features, in_features)
-    l3 = create_layer(in_features, out_features)
-    act1 = nn.LeakyReLU()
-    act2 = nn.LeakyReLU()
-
-    def f(x):
-        x = act1(l1(x))
-        x = act2(l2(x))
-        x = l3(x)
-        return x
-
-    return f

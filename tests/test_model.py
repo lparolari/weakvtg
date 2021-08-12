@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from weakvtg.mask import get_synthetic_mask
 from weakvtg.model import get_image_features, get_phrases_features, create_phrases_embedding_network, \
-    get_phrases_representation
+    get_phrases_representation, create_image_embedding_network
 from weakvtg.vocabulary import get_vocab
 
 
@@ -70,3 +70,7 @@ def test_get_phrases_representation():
                                               out_features=50, recurrent_network=lstm)
 
     assert phrases_repr.size() == torch.Size((1, 2, 50))
+
+
+def test_create_image_embedding_network():
+    assert len(create_image_embedding_network(50, 20)) == 5
