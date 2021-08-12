@@ -41,8 +41,10 @@ def epoch(loader, model, optimizer, criterion, train=True):
         end_time = time.time()
         eta = get_fancy_eta(start_time, end_time, current=fancy_batch_no, total=n_batch)
         start_time = end_time
-        logging.debug(f"{fancy_mode} {fancy_batch_no}/{n_batch}, loss: {pp(loss)}, accuracy: {pp(accuracy)}, "
-                      f"p_accuracy: {pp(p_accuracy)} | ETA: {eta}")
+        logging.debug(f"{fancy_mode} {fancy_batch_no}/{n_batch}, "
+                      f"loss: {pp(loss.item())}, "
+                      f"accuracy: {pp(accuracy.item())}, "
+                      f"p_accuracy: {pp(p_accuracy.item())} | ETA: {eta}")
 
     loss = total_loss / total_examples
     accuracy = percent(total_accuracy / total_examples)
