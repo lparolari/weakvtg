@@ -17,6 +17,8 @@ def epoch(loader, model, optimizer, criterion, train=True):
     total_accuracy = 0.
     total_p_accuracy = 0.
 
+    model.train(train)
+
     start_time = time.time()
 
     for i, batch in enumerate(loader):
