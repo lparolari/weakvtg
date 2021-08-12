@@ -13,7 +13,7 @@ from weakvtg.dataset import VtgDataset, collate_fn
 from weakvtg.loss import WeakVtgLoss
 from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_phrases_recurrent_network, \
-    create_image_embedding_network
+    create_image_embedding_network, init_rnn
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
 from weakvtg.train import train
 from weakvtg.vocabulary import load_vocab
@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=300, freeze=True)
 
-    lstm = nn.LSTM(300, 500, num_layers=1, bidirectional=False, batch_first=False)
+    lstm = init_rnn(nn.LSTM(300, 500, num_layers=1, bidirectional=False, batch_first=False))
     phrases_recurrent_net = functools.partial(create_phrases_recurrent_network,
                                               features_size=500, recurrent_network=lstm, device=device)
 

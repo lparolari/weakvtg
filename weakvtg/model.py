@@ -204,6 +204,15 @@ def create_phrases_recurrent_network(phrases_emb, phrases_length, mask, features
     return phrases_x_norm
 
 
+def init_rnn(rnn):
+    for name, param in rnn.named_parameters():
+        if 'bias' in name:
+            nn.init.constant_(param, 0.0)
+        elif 'weight' in name:
+            nn.init.xavier_normal_(param)
+    return rnn
+
+
 def create_image_embedding_network(in_features, out_features):
     def create_layer(in_features, out_features):
         linear = nn.Linear(in_features, out_features)
