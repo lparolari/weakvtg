@@ -74,7 +74,7 @@ def collate_fn(batch, tokenizer, vocab):
     batch = pivot(batch)
 
     phrases = batch["phrases"]  # [b, n_ph+, n_words+]
-    phrases_negative = batch["phrases"]  # [b, n_ph-, n_words-]
+    phrases_negative = batch["phrases_negative"]  # [b, n_ph-, n_words-]
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
 
     phrases, phrases_mask = get_phrases_tensor(phrases, tokenizer=tokenizer, vocab=vocab)
