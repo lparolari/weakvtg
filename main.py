@@ -32,6 +32,10 @@ def parse_args():
     parser.add_argument("--train-idx-filepath", type=str, default=None)
     parser.add_argument("--valid-idx-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
+    parser.add_argument("--text-embedding-size", type=int, default=None)
+    parser.add_argument("--text-semantic-size", type=int, default=None)
+    parser.add_argument("--image-embedding-size", type=int, default=None)
+    parser.add_argument("--image-semantic-size", type=int, default=None)
     parser.add_argument("--device-name", type=str, default=None)
     parser.add_argument("--save-folder", type=str, default=None)
     parser.add_argument("--suffix", type=str, default=None)
@@ -63,6 +67,10 @@ if __name__ == "__main__":
         "train_idx_filepath": args.train_idx_filepath,
         "valid_idx_filepath": args.valid_idx_filepath,
         "learning_rate": args.learning_rate,
+        "text_embedding_size": args.text_embedding_size,
+        "text_semantic_size": args.text_semantic_size,
+        "image_embedding_size": args.image_embedding_size,
+        "image_semantic_size": args.image_semantic_size,
         "device_name": args.device_name,
         "save_folder": args.save_folder,
         "suffix": args.suffix,
@@ -77,12 +85,20 @@ if __name__ == "__main__":
     train_idx_filepath = config["train_idx_filepath"]
     valid_idx_filepath = config["valid_idx_filepath"]
     learning_rate = config["learning_rate"]
+    text_embedding_size = config["text_embedding_size"]
+    text_semantic_size = config["text_semantic_size"]
+    image_embedding_size = config["image_embedding_size"]
+    image_semantic_size = config["image_semantic_size"]
     device_name = config["device_name"]
     save_folder = config["save_folder"]
     suffix = config["suffix"]
     restore = config["restore"]
 
     device = torch.device(device_name)
+
+    assert text_semantic_size == image_semantic_size, f"Text and image semantic size must be equal because of " \
+                                                      f"similarity measure, but {text_semantic_size} != " \
+                                                      f"{image_semantic_size}"
 
     wandb.init(project='weakvtg', entity='vtkel-solver', mode="online" if args.use_wandb else "disabled")
     wandb.config.update(config)
@@ -105,16 +121,17 @@ if __name__ == "__main__":
 
     vocab = load_vocab("data/referit_raw/vocab.json")
 
-    phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=300, freeze=True)
+    phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=text_embedding_size, freeze=True)
 
-    phrases_recurrent_net = init_rnn(nn.LSTM(300, 500, num_layers=1, bidirectional=False, batch_first=False))
+    phrases_recurrent_net = init_rnn(nn.LSTM(text_embedding_size, text_semantic_size,
+                                             num_layers=1, bidirectional=False, batch_first=False))
 
-    image_embedding_net = create_image_embedding_network(2053, 500)
+    image_embedding_net = create_image_embedding_network(image_embedding_size, image_semantic_size)
 
     _get_phrases_embedding = functools.partial(get_phrases_embedding, embedding_network=phrases_embedding_net)
     _get_phrases_representation = functools.partial(get_phrases_representation,
                                                     recurrent_network=phrases_recurrent_net,
-                                                    out_features=500,
+                                                    out_features=text_semantic_size,
                                                     device=device)
 
     # setup dataloader
