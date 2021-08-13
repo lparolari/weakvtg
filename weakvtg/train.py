@@ -112,25 +112,28 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         scaled_boxes[..., 3] = np.round(boxes[..., 3] * height)
         return scaled_boxes
 
-    def bounding_boxes_xyxy2xywh(bbox_list):
+    def xyxy2xywh(x):
         """
-        Transform bounding boxes coordinates.
-        :param bbox_list: list of coordinates as: [[xmin, ymin, xmax, ymax], [xmin, ymin, xmax, ymax]]
-        :return: list of coordinates as: [[xmin, ymin, width, height], [xmin, ymin, width, height]]
+        Transform coordinates from [x_min, y_min, x_max, y_max] to [x_min, y_min, width, height].
         """
-        new_coordinates = []
-        for box in bbox_list:
-            new_coordinates.append([box[0],
-                                    box[1],
-                                    box[2] - box[0],
-                                    box[3] - box[1]])
-        return new_coordinates
+        y = np.copy(x)
+        y[..., 2] = x[..., 2] - x[..., 0]
+        y[..., 3] = x[..., 3] - x[..., 1]
+        return y
 
     def ph(x): return " ".join([vocab.vocab.itos_[idx] for idx in x])
 
-    def pp_score(score): return f"min={np.min(score)}, max={np.max(score)}, avg={np.mean(score)}"
+    def pp_score(score): return f"min={np.min(score):.3f}, max={np.max(score):.3f}, avg={np.mean(score):.3f}"
 
-    def show_image(image, title, sentence, queries, boxes_predicted, boxes_gt):
+    def show_image(image, title, sentence, queries, boxes_pred, boxes_gt):
+        """
+        :param image: A numpy array with shape (width, height, depth)
+        :param title: A string representing plot title
+        :param sentence: A string representing example's sentence
+        :param queries: A list of strings with example's queries
+        :param boxes_pred: A list of bounding box for each query
+        :param boxes_gt: A list of bounding box
+        """
         import random
         import matplotlib as pl
         import matplotlib.pyplot as plt
@@ -138,14 +141,14 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
 
         pl.rcParams["figure.dpi"] = 230
 
-        boxes_predicted = bounding_boxes_xyxy2xywh(boxes_predicted)
-        boxes_gt = bounding_boxes_xyxy2xywh(boxes_gt)
+        boxes_pred = xyxy2xywh(boxes_pred)
+        boxes_gt = xyxy2xywh(boxes_gt)
 
         colors = [(random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1)) for _ in queries]
         font_size = 8
         text_props = dict(facecolor="blue", alpha=0.5)
 
-        plt.figtext(0.5, 0.01, f"{title}: \"{sentence}\"", ha="center", fontsize=font_size, wrap=True)
+        plt.figtext(0.5, 0.01, f"{title}", ha="center", fontsize=font_size, wrap=True)
 
         # plot predictions
         plt.subplot(1, 2, 1)
@@ -157,15 +160,24 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         ax.axes.xaxis.set_visible(False)
         ax.axes.yaxis.set_visible(False)
 
-        for query, box, color in zip(queries, boxes_predicted, colors):
-            x, y = box[0], box[1]
-            xy = (x, y)
-            width, height = box[2], box[3]
+        for i in range(len(queries)):
+            query = queries[i]
+            color = colors[i]
 
-            plt.text(x, y - 2, query, bbox=text_props, fontsize=5, color="white")
+            for j in range(len(boxes_pred[i])):
+                box = boxes_pred[i][j]
 
-            rect = patches.Rectangle(xy, width, height, linewidth=1, edgecolor=color, facecolor="none")
-            ax.add_patch(rect)
+                x, y = box[0], box[1]
+                xy = (x, y)
+                width, height = box[2], box[3]
+
+                if j == 0:
+                    plt.text(x, y - 2, query, bbox=text_props, fontsize=5, color="white")
+                if j > 0:
+                    plt.text(x, y - 2, j, bbox=text_props, fontsize=5, color="white")
+
+                rect = patches.Rectangle(xy, width, height, linewidth=1, edgecolor=[*color, .5], facecolor=[*color, .2])
+                ax.add_patch(rect)
 
         # plot ground truth
         plt.subplot(1, 2, 2)
@@ -205,7 +217,11 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         output = model(batch)
         loss, iou, accuracy, p_accuracy = criterion(batch, output)
         score_positive, score_negative = output[0]
+        # Instead of retrieving the single best bounding box, we retrieve top-K
         boxes_pred = get_boxes_predicted(boxes, score_positive, phrases_synthetic)
+        scores_topk, scores_topk_index = torch.topk(score_positive, k=3)
+        # quick and dirty way to gather to gather from boxes the top-k score :)
+        boxes_pred_topk = torch.gather(boxes.unsqueeze(-3), dim=-2, index=scores_topk_index.unsqueeze(-1).repeat(1, 1, 1, 4))
         # --- forward model
 
         height_ = height.detach().numpy()[0]
@@ -214,14 +230,14 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         idx_negative_ = idx_negative[0].detach().numpy()
         phrases_ = phrases[0].detach().numpy()
         phrases_str_ = [ph(x) for x in phrases_]
-        phrases_mask_ = phrases_mask[0].detach().numpy()
+        phrases_synth_mask_ = get_synthetic_mask(phrases_mask).squeeze(-1)[0].detach().numpy()
         score_positive_ = score_positive[0].detach().numpy()
         score_negative_ = score_negative[0].detach().numpy()
         loss_ = loss.item()
         iou_ = iou[0].detach().numpy()
         accuracy_ = accuracy.item()
         p_accuracy_ = p_accuracy.item()
-        boxes_pred_ = scale(boxes_pred[0].detach().numpy(), width=width_, height=height_)
+        boxes_pred_ = scale(boxes_pred_topk[0].detach().numpy(), width=width_, height=height_)
         boxes_gt_ = scale(phrases_2_crd[0].detach().numpy(), width=width_, height=height_)
 
         img_ = iox.load_image(os.path.join(dataset.image_filepath, f"{idx_}.jpg"))
@@ -233,6 +249,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         print(f"({i}) Pointing Game Accuracy: {p_accuracy_}")
         for j in range(len(phrases_)):
             print(f"({i}) ({j}) Phrase: {ph(phrases_[j])}")
+            print(f"({i}) ({j}) Synth: {not phrases_synth_mask_[j]}")
             print(f"({i}) ({j}) Scores+: {pp_score(score_positive_[j])}")
             print(f"({i}) ({j}) Scores-: {pp_score(score_negative_[j])}")
             print(f"({i}) ({j}) IoU: {iou_[j]}")
