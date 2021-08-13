@@ -1,3 +1,4 @@
+import functools
 import os
 import random
 
@@ -12,12 +13,16 @@ from weakvtg.utils import pivot
 
 
 class VtgDataset(Dataset):
-    def __init__(self, image_filepath: str, data_filepath: str, idx_filepath: str):
+    def __init__(self, image_filepath: str, data_filepath: str, idx_filepath: str, process_fn=None):
         super().__init__()
+
+        if process_fn is None:
+            process_fn = process_example
 
         self.image_filepath = image_filepath
         self.data_filepath = data_filepath
         self.idx_filepath = idx_filepath
+        self.process_fn = process_fn
         
         self.idx = self._load_index()
         self.examples = self._load_examples()
@@ -31,7 +36,7 @@ class VtgDataset(Dataset):
             caption = self._load_caption(index)
 
             example = {**caption, **image}
-            example = process_example(example)
+            example = self.process_fn(example)
 
             return example
 
@@ -120,20 +125,32 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
     example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
 
-    pred_n_boxes = example["pred_n_boxes"]
-    n_boxes_class = len(example["pred_attr_prob"][0])
-    n_boxes_attr = len(example["pred_cls_prob"][0])
-    n_boxes_features = len(example["pred_boxes_features"][0])
-    n_boxes_to_gen = n_boxes_to_keep - pred_n_boxes
-    example["pred_n_boxes"] = n_boxes_to_keep
-    example["pred_boxes"] = example["pred_boxes"] + [[0] * 4 for i in range(n_boxes_to_gen)]
-    example["pred_boxes_features"] = example["pred_boxes_features"] + [[0] * n_boxes_features for i in
-                                                                       range(n_boxes_to_gen)]
-    example["pred_attr_prob"] = example["pred_attr_prob"] + [[0] * n_boxes_class for i in range(n_boxes_to_gen)]
-    example["pred_cls_prob"] = example["pred_cls_prob"] + [[0] * n_boxes_attr for i in range(n_boxes_to_gen)]
+    def pad_boxes():
+        """
+        Pad boxes and update `example` as a side effect.
+        """
+        n_boxes = example["pred_n_boxes"]
+        n_class = len(example["pred_cls_prob"][0])
+        n_attr = len(example["pred_attr_prob"][0])
+        n_features = len(example["pred_boxes_features"][0])
 
-    example['pred_boxes_mask'] = [True] * (n_boxes_to_keep - n_boxes_to_gen) + [False] * n_boxes_to_gen
+        n_keep = n_boxes_to_keep  # boxes to keep, i.e., number of bounding box in output
+        n_gen = max(n_keep - n_boxes, 0)  # boxes to gen, i.e., number of bounding box missing to get `n_keep`
+        n_actual = n_keep - n_gen  # real boxes, i.e., non-padding boxes
 
-    example["pred_active_box_index"] = [random.randrange(0, pred_n_boxes) for _ in range(n_active_box)]
+        def zeros(d1, d2): return [[0] * d2 for _ in range(d1)]
+        def pad(xs, n_keep, n_gen, n_feats): return (xs + zeros(n_gen, n_feats))[:n_keep]
+
+        example["pred_n_boxes"] = n_keep
+        example["pred_boxes"] = pad(example["pred_boxes"], n_keep, n_gen, n_feats=4)
+        example["pred_boxes_features"] = pad(example["pred_boxes_features"], n_keep, n_gen, n_feats=n_features)
+        example["pred_attr_prob"] = pad(example["pred_attr_prob"], n_keep, n_gen, n_feats=n_attr)
+        example["pred_cls_prob"] = pad(example["pred_cls_prob"], n_keep, n_gen, n_feats=n_class)
+
+        example['pred_boxes_mask'] = [True] * n_actual + [False] * n_gen
+
+        example["pred_active_box_index"] = [random.randrange(0, n_actual) for _ in range(n_active_box)]
+
+    pad_boxes()
 
     return example

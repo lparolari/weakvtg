@@ -11,7 +11,7 @@ import torchtext
 import wandb
 
 from weakvtg.config import get_config
-from weakvtg.dataset import VtgDataset, collate_fn
+from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss
 from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument("--text-semantic-size", type=int, default=None)
     parser.add_argument("--image-embedding-size", type=int, default=None)
     parser.add_argument("--image-semantic-size", type=int, default=None)
+    parser.add_argument("--n-box", type=int, default=None)
     parser.add_argument("--device-name", type=str, default=None)
     parser.add_argument("--save-folder", type=str, default=None)
     parser.add_argument("--suffix", type=str, default=None)
@@ -71,6 +72,7 @@ if __name__ == "__main__":
         "text_semantic_size": args.text_semantic_size,
         "image_embedding_size": args.image_embedding_size,
         "image_semantic_size": args.image_semantic_size,
+        "n_box": args.n_box,
         "device_name": args.device_name,
         "save_folder": args.save_folder,
         "suffix": args.suffix,
@@ -89,6 +91,7 @@ if __name__ == "__main__":
     text_semantic_size = config["text_semantic_size"]
     image_embedding_size = config["image_embedding_size"]
     image_semantic_size = config["image_semantic_size"]
+    n_box = config["n_box"]
     device_name = config["device_name"]
     save_folder = config["save_folder"]
     suffix = config["suffix"]
@@ -108,8 +111,10 @@ if __name__ == "__main__":
     logging.info(f"Model started with following parameters: {config}")
 
     # create dataset adapter
-    train_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=train_idx_filepath)
-    valid_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=valid_idx_filepath)
+    process_fn = functools.partial(process_example, n_boxes_to_keep=n_box)
+
+    train_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=train_idx_filepath, process_fn=process_fn)
+    valid_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=valid_idx_filepath, process_fn=process_fn)
 
     # create core tools
     # * tokenizer
