@@ -132,8 +132,11 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
 
     def show_image(image, title, sentence, queries, boxes_predicted, boxes_gt):
         import random
+        import matplotlib as pl
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
+
+        pl.rcParams["figure.dpi"] = 230
 
         boxes_predicted = bounding_boxes_xyxy2xywh(boxes_predicted)
         boxes_gt = bounding_boxes_xyxy2xywh(boxes_gt)
