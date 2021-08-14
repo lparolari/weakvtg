@@ -31,6 +31,7 @@ def parse_args():
     parser.add_argument("--data-filepath", type=str, default=None)
     parser.add_argument("--train-idx-filepath", type=str, default=None)
     parser.add_argument("--valid-idx-filepath", type=str, default=None)
+    parser.add_argument("--vocab-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--text-embedding-size", type=int, default=None)
     parser.add_argument("--text-semantic-size", type=int, default=None)
@@ -67,6 +68,7 @@ if __name__ == "__main__":
         "data_filepath": args.data_filepath,
         "train_idx_filepath": args.train_idx_filepath,
         "valid_idx_filepath": args.valid_idx_filepath,
+        "vocab_filepath": args.vocab_filepath,
         "learning_rate": args.learning_rate,
         "text_embedding_size": args.text_embedding_size,
         "text_semantic_size": args.text_semantic_size,
@@ -86,6 +88,7 @@ if __name__ == "__main__":
     data_filepath = config["data_filepath"]
     train_idx_filepath = config["train_idx_filepath"]
     valid_idx_filepath = config["valid_idx_filepath"]
+    vocab_filepath = config["vocab_filepath"]
     learning_rate = config["learning_rate"]
     text_embedding_size = config["text_embedding_size"]
     text_semantic_size = config["text_semantic_size"]
@@ -124,7 +127,7 @@ if __name__ == "__main__":
 
     tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(get_nlp()))
 
-    vocab = load_vocab("data/referit_raw/vocab.json")
+    vocab = load_vocab(vocab_filepath)
 
     phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=text_embedding_size, freeze=True)
 
