@@ -212,6 +212,8 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         phrases_mask = batch["phrases_mask"]
         phrases_synthetic = get_synthetic_mask(phrases_mask)
 
+        n_ph = phrases.size()[-2]
+
         # --- forward model
         optimizer.zero_grad()
         output = model(batch)
@@ -219,9 +221,9 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         score_positive, score_negative = output[0]
         # Instead of retrieving the single best bounding box, we retrieve top-K
         boxes_pred = get_boxes_predicted(boxes, score_positive, phrases_synthetic)
-        scores_topk, scores_topk_index = torch.topk(score_positive, k=3)
+        scores_topk, scores_topk_index = torch.topk(score_positive, k=1)
         # quick and dirty way to gather to gather from boxes the top-k score :)
-        boxes_pred_topk = torch.gather(boxes.unsqueeze(-3), dim=-2, index=scores_topk_index.unsqueeze(-1).repeat(1, 1, 1, 4))
+        boxes_pred_topk = torch.gather(boxes.unsqueeze(-3).repeat(1, n_ph, 1, 1), dim=-2, index=scores_topk_index.unsqueeze(-1).repeat(1, 1, 1, 4))
         # --- forward model
 
         height_ = height.detach().numpy()[0]
@@ -251,7 +253,8 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
             print(f"({i}) ({j}) Phrase: {ph(phrases_[j])}")
             print(f"({i}) ({j}) Synth: {not phrases_synth_mask_[j]}")
             print(f"({i}) ({j}) Scores+: {pp_score(score_positive_[j])}")
-            print(f"({i}) ({j}) Scores-: {pp_score(score_negative_[j])}")
+            if j < score_negative_.shape[0]:
+                print(f"({i}) ({j}) Scores-: {pp_score(score_negative_[j])}")
             print(f"({i}) ({j}) IoU: {iou_[j]}")
             print(f"({i}) ({j}) Best pred: {boxes_pred_[j]}")
             print(f"({i}) ({j}) Boxes GT: {boxes_gt_[j]}")
