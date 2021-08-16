@@ -182,7 +182,7 @@ if __name__ == "__main__":
         logging.info(f"Best hist validation accuracy at epoch {get_argmax(valid_accuracy)}: {get_max(valid_accuracy)}")
 
     def do_test():
-        loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_function,
+        loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate_function,
                                              num_workers=num_workers, prefetch_factor=prefetch_factor)
 
         test(loader, model, optimizer, criterion)
