@@ -212,6 +212,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         height = batch["image_h"]
         width = batch["image_w"]
         boxes = batch["pred_boxes"]
+        sentence = batch["sentence"]
         phrases = batch["phrases"]
         phrases_2_crd = batch["phrases_2_crd"]
         phrases_mask = batch["phrases_mask"]
@@ -235,6 +236,8 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         width_ = width.detach().numpy()[0]
         idx_ = idx[0].detach().numpy()
         idx_negative_ = idx_negative[0].detach().numpy()
+        sentence_ = sentence[0].detach().numpy()
+        sentence_str_ = ph(sentence_)
         phrases_ = phrases[0].detach().numpy()
         phrases_str_ = [ph(x) for x in phrases_]
         phrases_synth_mask_ = get_synthetic_mask(phrases_mask).squeeze(-1)[0].detach().numpy()
@@ -264,7 +267,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
             print(f"({i}) ({j}) Best pred: {boxes_pred_[j]}")
             print(f"({i}) ({j}) Boxes GT: {boxes_gt_[j]}")
 
-        show_image(img_, "Example", "My Plot", phrases_str_, boxes_pred_, boxes_gt_)
+        show_image(img_, f"{idx_} (#{i}): {sentence_str_}", sentence_str_, phrases_str_, boxes_pred_, boxes_gt_)
 
 
 def save_model(model, epoch, optimizer=None, scheduler=None, folder=None, suffix=None):
