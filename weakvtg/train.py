@@ -214,6 +214,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         boxes = batch["pred_boxes"]
         sentence = batch["sentence"]
         phrases = batch["phrases"]
+        phrases_negative = batch["phrases_negative"]
         phrases_2_crd = batch["phrases_2_crd"]
         phrases_mask = batch["phrases_mask"]
         phrases_synthetic = get_synthetic_mask(phrases_mask)
@@ -241,6 +242,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         phrases_ = phrases[0].detach().numpy()
         phrases_str_ = [ph(x) for x in phrases_]
         phrases_synth_mask_ = get_synthetic_mask(phrases_mask).squeeze(-1)[0].detach().numpy()
+        phrases_negative_ = phrases_negative[0].detach().numpy()
         score_positive_ = score_positive[0].detach().numpy()
         score_negative_ = score_negative[0].detach().numpy()
         loss_ = loss.item()
@@ -258,7 +260,9 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         print(f"({i}) Accuracy: {accuracy_}")
         print(f"({i}) Pointing Game Accuracy: {p_accuracy_}")
         for j in range(len(phrases_)):
-            print(f"({i}) ({j}) Phrase: {ph(phrases_[j])}")
+            print(f"({i}) ({j}) Phrase+: {ph(phrases_[j])}")
+            if j < phrases_negative_.shape[0]:
+                print(f"({i}) ({j}) Phrase-: {ph(phrases_negative_[j])}")
             print(f"({i}) ({j}) Synth: {not phrases_synth_mask_[j]}")
             print(f"({i}) ({j}) Scores+: {pp_score(score_positive_[j])}")
             if j < score_negative_.shape[0]:
