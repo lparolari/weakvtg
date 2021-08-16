@@ -50,24 +50,6 @@ class WeakVtgLoss(nn.Module):
         return l_disc, *validation
 
 
-def get_representation_for_best_bbox(x_repr: torch.Tensor, bbox_scores: torch.Tensor):
-    """
-    Gather the representation from `x_repr` for the best bounding box from `bbox_scores`.
-
-    :param x_repr: A input representation for each phrase for each bounding box
-    :param bbox_scores: A tensor with a list of bounding box logits for each phrase
-    :return: A tensor with input representation for best bounding box
-    """
-    n_pred_box = x_repr.size()[2]
-
-    best_bbox_indices = torch.argmax(bbox_scores, dim=-1)                # [b, n_chunks]
-    best_bbox_indices = best_bbox_indices.unsqueeze(-1).unsqueeze(-1)    # [b, n_chunks, 1, 1]
-    best_bbox_indices = best_bbox_indices.repeat(1, 1, n_pred_box, 500)  # [b, n_chunks, n_pred_box, 500]
-    x_repr_best = torch.gather(x_repr, dim=2, index=best_bbox_indices)   # [b, n_chunks, 500]
-    x_repr_best = x_repr_best[:, :, 0, :].contiguous()
-    return x_repr_best
-
-
 def get_iou_scores(boxes, gt, mask):
     """
     Compute and return IoU scores between two tensor of bounding boxes, and mask them with `mask`.
@@ -139,28 +121,3 @@ def get_pointing_game_accuracy(boxes_gt, boxes_pred, mask):
     accuracy = accuracy.int() * mask.squeeze(dim=-1)
     accuracy = torch.sum(accuracy) / mask.sum()
     return accuracy
-
-
-def get_active_index(active_box_index, shape):
-    """
-    Returns the bounding boxes active index for each chunk.
-
-    :param active_box_index: A [d1, d3] torch.LongTensor
-    :param shape: A [d1, d2, d3] torch.Size object
-    :return: A [d1, d2, d3] torch.LongTensor
-    """
-    return active_box_index.repeat(1, shape[-2]).view(*shape)
-
-
-def get_score(score, index, mask):
-    """
-    Returns scores on given index.
-
-    :param score: A [*, d1, d2] tensor
-    :param index: A [*, d1, d3] tensor
-    :param mask: A [*, d1, 1] torch.BoolTensor
-    :return: A [*, d1, d3] tensor
-    """
-    score = torch.gather(score, dim=-1, index=index)
-    score = torch.masked_fill(score, mask == 0, value=0)
-    return score
