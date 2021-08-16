@@ -8,7 +8,7 @@ from torch.utils.data.dataset import T_co
 
 from weakvtg import iox, bbox
 from weakvtg.padder import get_phrases_tensor, get_padded_examples, get_number_examples, get_max_length_examples, \
-    get_max_length_phrases
+    get_max_length_phrases, get_indexed_phrases_per_example
 from weakvtg.utils import pivot
 
 
@@ -79,6 +79,7 @@ class VtgDataset(Dataset):
 def collate_fn(batch, tokenizer, vocab):
     batch = pivot(batch)
 
+    sentence = batch["sentence"]  # [b, n_words_sentence]
     phrases = batch["phrases"]  # [b, n_ph+, n_words+]
     phrases_negative = batch["phrases_negative"]  # [b, n_ph-, n_words-]
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
@@ -91,6 +92,22 @@ def collate_fn(batch, tokenizer, vocab):
         # please note that `padding_value=0` produces an invalid mask, however, this mask is not used
         return get_padded_examples(phrases_2_crd, padding_value=0, dtype=torch.float, padding_dim=dim)
 
+    def _get_padded_sentence(sentence):
+        indexed_sentences = get_indexed_phrases_per_example([sentence], tokenizer=tokenizer, vocab=vocab)
+
+        dim = (get_number_examples(indexed_sentences),
+               get_max_length_examples(indexed_sentences),
+               get_max_length_phrases(indexed_sentences))
+
+        x, mask = get_padded_examples(indexed_sentences, padding_value=0, padding_dim=dim)
+
+        # remove the dummy dimension added in order to compute the indexed sentence
+        x = x.squeeze(0)
+        mask = mask.squeeze(0)
+
+        return x, mask
+
+    sentence, sentence_mask = _get_padded_sentence(sentence)
     phrases, phrases_mask = get_phrases_tensor(phrases, tokenizer=tokenizer, vocab=vocab)
     phrases_negative, phrases_mask_negative = get_phrases_tensor(phrases_negative, tokenizer=tokenizer, vocab=vocab)
     phrases_2_crd, _ = _get_padded_phrases_2_crd(phrases_2_crd)
@@ -107,6 +124,8 @@ def collate_fn(batch, tokenizer, vocab):
         "pred_boxes_features": torch.tensor(batch["pred_boxes_features"], dtype=torch.float32),
         "pred_active_box_index": torch.tensor(batch["pred_active_box_index"], dtype=torch.long),
         "pred_boxes_mask": torch.tensor(batch["pred_boxes_mask"], dtype=torch.bool),
+        "sentence": sentence,
+        "sentence_mask": sentence_mask,
         "phrases": phrases,
         "phrases_mask": phrases_mask,
         "phrases_negative": phrases_negative,
