@@ -8,6 +8,7 @@ __defaults = {
     "data_filepath": "data/referit_raw/preprocessed",
     "train_idx_filepath": "data/referit_raw/train.txt",
     "valid_idx_filepath": "data/referit_raw/val.txt",
+    "test_idx_filepath": "data/referit_raw/test.txt",
     "vocab_filepath": "data/referit_raw/vocab.json",
     "learning_rate": 0.001,
     "text_embedding_size": 300,

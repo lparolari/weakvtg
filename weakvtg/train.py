@@ -103,6 +103,11 @@ def train(train_loader, valid_loader, model, optimizer, criterion,
     return train_results, valid_results
 
 
+def test(loader, model, optimizer, criterion):
+    test_out = epoch(loader, model, optimizer, criterion)
+    logging.info(f"Testing completed. {pp(test_out)}")
+
+
 def test_example(dataset, loader, model, optimizer, criterion, vocab):
     def scale(boxes, *, width, height):
         scaled_boxes = np.zeros_like(boxes)

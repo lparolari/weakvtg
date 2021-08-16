@@ -17,7 +17,7 @@ from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
     get_phrases_representation, get_phrases_embedding
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
-from weakvtg.train import train, load_model, test_example
+from weakvtg.train import train, load_model, test_example, test
 from weakvtg.vocabulary import load_vocab
 
 
@@ -31,6 +31,7 @@ def parse_args():
     parser.add_argument("--data-filepath", type=str, default=None)
     parser.add_argument("--train-idx-filepath", type=str, default=None)
     parser.add_argument("--valid-idx-filepath", type=str, default=None)
+    parser.add_argument("--test-idx-filepath", type=str, default=None)
     parser.add_argument("--vocab-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--text-embedding-size", type=int, default=None)
@@ -68,6 +69,7 @@ if __name__ == "__main__":
         "data_filepath": args.data_filepath,
         "train_idx_filepath": args.train_idx_filepath,
         "valid_idx_filepath": args.valid_idx_filepath,
+        "test_idx_filepath": args.test_idx_filepath,
         "vocab_filepath": args.vocab_filepath,
         "learning_rate": args.learning_rate,
         "text_embedding_size": args.text_embedding_size,
@@ -88,6 +90,7 @@ if __name__ == "__main__":
     data_filepath = config["data_filepath"]
     train_idx_filepath = config["train_idx_filepath"]
     valid_idx_filepath = config["valid_idx_filepath"]
+    test_idx_filepath = config["test_idx_filepath"]
     vocab_filepath = config["vocab_filepath"]
     learning_rate = config["learning_rate"]
     text_embedding_size = config["text_embedding_size"]
@@ -118,6 +121,7 @@ if __name__ == "__main__":
 
     train_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=train_idx_filepath, process_fn=process_fn)
     valid_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=valid_idx_filepath, process_fn=process_fn)
+    test_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=test_idx_filepath, process_fn=process_fn)
 
     # create core tools
     # * tokenizer
@@ -177,15 +181,23 @@ if __name__ == "__main__":
         logging.info(f"Best hist validation loss at epoch {get_argmax(valid_loss)}: {get_max(valid_loss)}")
         logging.info(f"Best hist validation accuracy at epoch {get_argmax(valid_accuracy)}: {get_max(valid_accuracy)}")
 
+    def do_test():
+        loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_function,
+                                             num_workers=num_workers, prefetch_factor=prefetch_factor)
+
+        test(loader, model, optimizer, criterion)
+
     def do_test_example():
         dataset = valid_dataset
         loader = torchdata.DataLoader(dataset, batch_size=1, collate_fn=collate_function, num_workers=num_workers,
                                       prefetch_factor=prefetch_factor)
         test_example(dataset, loader, model, optimizer, criterion, vocab=vocab)
 
-
     if args.workflow == "train":
         do_train()
+
+    if args.workflow == "test":
+        do_test()
 
     if args.workflow == "test-example":
         do_test_example()
