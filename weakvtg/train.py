@@ -104,7 +104,7 @@ def train(train_loader, valid_loader, model, optimizer, criterion,
 
 
 def test(loader, model, optimizer, criterion):
-    test_out = epoch(loader, model, optimizer, criterion)
+    test_out = epoch(loader, model, optimizer, criterion, train=False)
     logging.info(f"Testing completed. {pp(test_out)}")
 
 
@@ -227,7 +227,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         score_positive, score_negative = output[0]
         # Instead of retrieving the single best bounding box, we retrieve top-K
         boxes_pred = get_boxes_predicted(boxes, score_positive, phrases_synthetic)
-        scores_topk, scores_topk_index = torch.topk(score_positive, k=1)
+        scores_topk, scores_topk_index = torch.topk(score_positive, k=5)
         # quick and dirty way to gather to gather from boxes the top-k score :)
         boxes_pred_topk = torch.gather(boxes.unsqueeze(-3).repeat(1, n_ph, 1, 1), dim=-2, index=scores_topk_index.unsqueeze(-1).repeat(1, 1, 1, 4))
         # --- forward model
