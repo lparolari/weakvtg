@@ -15,6 +15,7 @@ __defaults = {
     "text_semantic_size": 500,
     "image_embedding_size": 2053,
     "image_semantic_size": 500,
+    "image_semantic_hidden_layers": 2,
     "n_box": 100,
     "device_name": "cpu",
     "save_folder": tempfile.gettempdir(),

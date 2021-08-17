@@ -230,18 +230,22 @@ def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
     return embedding_matrix
 
 
-def create_image_embedding_network(in_features, out_features):
+def create_image_embedding_network(in_features, out_features, n_hidden_layer=2):
     def create_layer(in_features, out_features):
         linear = nn.Linear(in_features, out_features)
         nn.init.xavier_normal_(linear.weight)
         nn.init.zeros_(linear.bias)
         return linear
 
+    def create_hidden_layers():
+        hidden_layers = ()
+        for i in range(n_hidden_layer):
+            hidden_layers += create_layer(in_features, in_features),
+            hidden_layers += nn.LeakyReLU(),
+        return hidden_layers
+
     return nn.Sequential(
-        create_layer(in_features, in_features),
-        nn.LeakyReLU(),
-        create_layer(in_features, in_features),
-        nn.LeakyReLU(),
+        *create_hidden_layers(),
         create_layer(in_features, out_features),
     )
 

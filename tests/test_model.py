@@ -74,3 +74,4 @@ def test_get_phrases_representation():
 
 def test_create_image_embedding_network():
     assert len(create_image_embedding_network(50, 20)) == 5
+    assert len(create_image_embedding_network(50, 20, n_hidden_layer=3)) == 7
