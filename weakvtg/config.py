@@ -13,6 +13,7 @@ __defaults = {
     "learning_rate": 0.001,
     "text_embedding_size": 300,
     "text_semantic_size": 500,
+    "text_semantic_num_layers": 1,
     "image_embedding_size": 2053,
     "image_semantic_size": 500,
     "image_semantic_hidden_layers": 2,

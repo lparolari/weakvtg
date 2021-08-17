@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--text-embedding-size", type=int, default=None)
     parser.add_argument("--text-semantic-size", type=int, default=None)
+    parser.add_argument("--text-semantic-num-layers", type=int, default=None)
     parser.add_argument("--image-embedding-size", type=int, default=None)
     parser.add_argument("--image-semantic-size", type=int, default=None)
     parser.add_argument("--image-semantic-hidden-layers", type=int, default=None)
@@ -75,6 +76,7 @@ if __name__ == "__main__":
         "learning_rate": args.learning_rate,
         "text_embedding_size": args.text_embedding_size,
         "text_semantic_size": args.text_semantic_size,
+        "text_semantic_num_layers": args.text_semantic_num_layers,
         "image_embedding_size": args.image_embedding_size,
         "image_semantic_size": args.image_semantic_size,
         "image_semantic_hidden_layers": args.image_semantic_hidden_layers,
@@ -97,6 +99,7 @@ if __name__ == "__main__":
     learning_rate = config["learning_rate"]
     text_embedding_size = config["text_embedding_size"]
     text_semantic_size = config["text_semantic_size"]
+    text_semantic_num_layers = config["text_semantic_num_layers"]
     image_embedding_size = config["image_embedding_size"]
     image_semantic_size = config["image_semantic_size"]
     image_semantic_hidden_layers = config["image_semantic_hidden_layers"]
@@ -139,7 +142,8 @@ if __name__ == "__main__":
     phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=text_embedding_size, freeze=True)
 
     phrases_recurrent_net = init_rnn(nn.LSTM(text_embedding_size, text_semantic_size,
-                                             num_layers=1, bidirectional=False, batch_first=False))
+                                             num_layers=text_semantic_num_layers, bidirectional=False,
+                                             batch_first=False))
 
     image_embedding_net = create_image_embedding_network(image_embedding_size, image_semantic_size,
                                                          n_hidden_layer=image_semantic_hidden_layers)

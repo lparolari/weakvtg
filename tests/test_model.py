@@ -64,7 +64,7 @@ def test_get_phrases_representation():
     text_embedding = create_phrases_embedding_network(vocab, embedding_size=300, freeze=True)
     phrases_embedded = text_embedding(phrases)
 
-    lstm = nn.LSTM(300, 50, num_layers=1, bidirectional=False, batch_first=False)
+    lstm = nn.LSTM(300, 50, num_layers=2, bidirectional=False, batch_first=False)
 
     phrases_repr = get_phrases_representation(phrases_embedded, phrases_length, get_synthetic_mask(phrases_mask),
                                               out_features=50, recurrent_network=lstm)
