@@ -214,9 +214,10 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         boxes = batch["pred_boxes"]
         sentence = batch["sentence"]
         phrases = batch["phrases"]
-        phrases_negative = batch["phrases_negative"]
-        phrases_2_crd = batch["phrases_2_crd"]
         phrases_mask = batch["phrases_mask"]
+        phrases_negative = batch["phrases_negative"]
+        phrases_mask_neg = batch["phrases_mask_negative"]
+        phrases_2_crd = batch["phrases_2_crd"]
         phrases_synthetic = get_synthetic_mask(phrases_mask)
 
         n_ph = phrases.size()[-2]
@@ -228,7 +229,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         score_positive, score_negative = output[0]
         # Instead of retrieving the single best bounding box, we retrieve top-K
         boxes_pred = get_boxes_predicted(boxes, score_positive, phrases_synthetic)
-        scores_topk, scores_topk_index = torch.topk(score_positive, k=5)
+        scores_topk, scores_topk_index = torch.topk(score_positive, k=1)
         # quick and dirty way to gather to gather from boxes the top-k score :)
         boxes_pred_topk = torch.gather(boxes.unsqueeze(-3).repeat(1, n_ph, 1, 1), dim=-2, index=scores_topk_index.unsqueeze(-1).repeat(1, 1, 1, 4))
         # --- forward model
@@ -241,7 +242,8 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         sentence_str_ = ph(sentence_)
         phrases_ = phrases[0].detach().numpy()
         phrases_str_ = [ph(x) for x in phrases_]
-        phrases_synth_mask_ = get_synthetic_mask(phrases_mask).squeeze(-1)[0].detach().numpy()
+        phrases_mask_ = phrases_mask.squeeze(-1)[0].detach().numpy()
+        phrases_mask_neg_ = phrases_mask_neg.squeeze(-1)[0].detach().numpy()
         phrases_negative_ = phrases_negative[0].detach().numpy()
         score_positive_ = score_positive[0].detach().numpy()
         score_negative_ = score_negative[0].detach().numpy()
@@ -263,7 +265,9 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
             print(f"({i}) ({j}) Phrase+: {ph(phrases_[j])}")
             if j < phrases_negative_.shape[0]:
                 print(f"({i}) ({j}) Phrase-: {ph(phrases_negative_[j])}")
-            print(f"({i}) ({j}) Synth: {not phrases_synth_mask_[j]}")
+            print(f"({i}) ({j}) Mask+: {phrases_mask_[j]}")
+            if j < phrases_negative_.shape[0]:
+                print(f"({i}) ({j}) Mask-: {phrases_mask_neg_[j]}")
             print(f"({i}) ({j}) Scores+: {pp_score(score_positive_[j])}")
             if j < score_negative_.shape[0]:
                 print(f"({i}) ({j}) Scores-: {pp_score(score_negative_[j])}")
