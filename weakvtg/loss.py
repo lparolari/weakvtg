@@ -16,6 +16,7 @@ class WeakVtgLoss(nn.Module):
 
     def forward(self, batch, output):
         boxes = batch["pred_boxes"]
+        boxes_mask = batch["pred_boxes_mask"]
         phrases_2_crd = batch["phrases_2_crd"]
         phrases_mask = batch["phrases_mask"]
         phrases_mask_negative = batch["phrases_mask_negative"]
@@ -24,10 +25,25 @@ class WeakVtgLoss(nn.Module):
 
         (predicted_score_positive, predicted_score_negative) = output[0]  # [b, n_chunks, n_boxes]
 
-        score_positive = predicted_score_positive
-        score_negative = predicted_score_negative
+        def _get_scores(scores, phrases_mask, boxes_mask, boxes_fill_value):
+            """
+            Apply scores pipeline which (1) sets padded bounding box scores to 1 and -1 respectively for positive
+            and negative phrases and (2) filter out padded phrases.
+            """
+            # gradient on padded boxes could affect results, for this reason we masked-fill padded boxes with 1 or -1
+            # respectively for positive and negative phrases in order to match target value and don't let the gradient
+            # to care about this scores.
+            scores = torch.masked_fill(scores, boxes_mask == 0, value=boxes_fill_value)
+
+            # also in this case, in order to save gradient issues, we completely remove padded phrases from scores.
+            scores = filter_scores(scores, phrases_mask)
+
+            return scores
+
         score_positive_mask = phrases_synthetic
         score_negative_mask = phrases_synthetic_negative
+        score_positive = _get_scores(predicted_score_positive, score_positive_mask, boxes_mask, boxes_fill_value=+1)
+        score_negative = _get_scores(predicted_score_negative, score_negative_mask, boxes_mask, boxes_fill_value=-1)
 
         l_disc = self.loss(
             (score_positive, score_positive_mask),
@@ -45,7 +61,10 @@ class WeakVtgLoss(nn.Module):
 
             return iou_scores, accuracy, p_accuracy
 
-        validation = get_validation(boxes, phrases_2_crd, score_positive, score_positive_mask)
+        # Please note that for validation we should not use scores tensor given to loss module, because they are
+        # masked in order to fix gradient problem. For validation we should use instead scores coming directly from
+        # model output.
+        validation = get_validation(boxes, phrases_2_crd, predicted_score_positive, phrases_synthetic)
 
         return l_disc, *validation
 
@@ -121,3 +140,17 @@ def get_pointing_game_accuracy(boxes_gt, boxes_pred, mask):
     accuracy = accuracy.int() * mask.squeeze(dim=-1)
     accuracy = torch.sum(accuracy) / mask.sum()
     return accuracy
+
+
+def filter_scores(scores, mask):
+    """
+    Return items in `scores` tensor where `mask` is not False.
+
+    Please note the returned tensor may vary in dimension wrt the number of True elements in `mask`.
+
+    :param scores: A [d1, d2, *, dN-1, dN] tensor
+    :param mask: A [d1, d2, *, dN-1, 1] bool tensor
+    :return: A [d1 * d2 * ... * dN-1, dN] tensor
+    """
+    index = mask.long().squeeze(-1).nonzero(as_tuple=True)
+    return scores[index]

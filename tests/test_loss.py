@@ -73,3 +73,13 @@ def test_get_boxes_predicted(boxes, boxes_scores):
     predicted = losses.get_boxes_predicted(boxes, boxes_scores, mask)
 
     assert torch.equal(expected, predicted)
+
+
+def test_filter_scores():
+    scores = torch.tensor([[[-.56, .77, .12], [.89, -.45, -.16]], [[.12, -.05, 0.10], [-.47, .32, -.84]]])
+    mask = torch.tensor([[[True], [True]], [[True], [False]]])
+
+    expected = torch.tensor([[-.56, .77, .12], [.89, -.45, -.16], [.12, -.05, 0.10]])
+    actual = losses.filter_scores(scores, mask)
+
+    assert torch.equal(actual, expected)
