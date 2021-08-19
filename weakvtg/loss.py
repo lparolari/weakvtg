@@ -33,6 +33,9 @@ class WeakVtgLoss(nn.Module):
             # gradient on padded boxes could affect results, for this reason we masked-fill padded boxes with 1 or -1
             # respectively for positive and negative phrases in order to match target value and don't let the gradient
             # to care about this scores.
+            n_ph = scores.size()[-2]
+            boxes_mask = boxes_mask.unsqueeze(-2).repeat(1, n_ph, 1)
+
             scores = torch.masked_fill(scores, boxes_mask == 0, value=boxes_fill_value)
 
             # also in this case, in order to save gradient issues, we completely remove padded phrases from scores.
