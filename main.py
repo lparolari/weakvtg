@@ -41,6 +41,7 @@ def parse_args():
     parser.add_argument("--image-semantic-size", type=int, default=None)
     parser.add_argument("--image-semantic-hidden-layers", type=int, default=None)
     parser.add_argument("--n-box", type=int, default=None)
+    parser.add_argument("--n-epochs", type=int, default=None)
     parser.add_argument("--device-name", type=str, default=None)
     parser.add_argument("--save-folder", type=str, default=None)
     parser.add_argument("--suffix", type=str, default=None)
@@ -81,6 +82,7 @@ if __name__ == "__main__":
         "image_semantic_size": args.image_semantic_size,
         "image_semantic_hidden_layers": args.image_semantic_hidden_layers,
         "n_box": args.n_box,
+        "n_epochs": args.n_epochs,
         "device_name": args.device_name,
         "save_folder": args.save_folder,
         "suffix": args.suffix,
@@ -104,6 +106,7 @@ if __name__ == "__main__":
     image_semantic_size = config["image_semantic_size"]
     image_semantic_hidden_layers = config["image_semantic_hidden_layers"]
     n_box = config["n_box"]
+    n_epochs = config["n_epochs"]
     device_name = config["device_name"]
     save_folder = config["save_folder"]
     suffix = config["suffix"]
@@ -180,7 +183,7 @@ if __name__ == "__main__":
 
     def do_train():
         _, valid_history = train(train_loader, valid_loader, model, optimizer, criterion,
-                                 start_epoch=start_epoch, save_folder=save_folder, suffix=suffix)
+                                 start_epoch=start_epoch, n_epochs=n_epochs, save_folder=save_folder, suffix=suffix)
 
         # log data
         valid_loss = valid_history["loss"]

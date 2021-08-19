@@ -18,6 +18,7 @@ __defaults = {
     "image_semantic_size": 500,
     "image_semantic_hidden_layers": 2,
     "n_box": 100,
+    "n_epochs": 15,
     "device_name": "cpu",
     "save_folder": tempfile.gettempdir(),
     "suffix": "default",
