@@ -1,11 +1,22 @@
 import torch.nn as nn
 
 
-def arloss(attraction_tensor, repulsion_tensor, attraction_mask, repulsion_mask, lam):
-    # combine up everything to accumulate across the entire batch
-    loss_attraction = attraction_tensor.sum() / attraction_mask.sum()
-    loss_repulsion = repulsion_tensor.sum() / repulsion_mask.sum()
+def arloss(attraction_tensor, repulsion_tensor, attraction_mask, repulsion_mask, boxes_mask, lam):
+
+    def average_over_boxes(x, m):
+        return x.sum(dim=-1) / m.sum(dim=-1).unsqueeze(-1)
+
+    def average_over_phrases(x, m):
+        return x.sum() / m.sum()
+
+    loss_attraction = average_over_boxes(attraction_tensor, boxes_mask)
+    loss_attraction = average_over_phrases(loss_attraction, attraction_mask)
+
+    loss_repulsion = average_over_boxes(repulsion_tensor, boxes_mask)
+    loss_repulsion = average_over_phrases(loss_repulsion, repulsion_mask)
+
     arloss = -(lam * loss_attraction) + ((1. - lam) * loss_repulsion)
+
     return arloss
 
 
@@ -19,7 +30,7 @@ class CosineARLoss(nn.Module):
         self.lam = lam
         self.device = device
 
-    def forward(self, attraction, repulsion):
+    def forward(self, attraction, repulsion, boxes_mask):
         attraction_tensor, attraction_mask = attraction
         repulsion_tensor, repulsion_mask = repulsion
 
@@ -31,4 +42,4 @@ class CosineARLoss(nn.Module):
 
         repulsion_tensor = repulsion_tensor ** 2
 
-        return arloss(attraction_tensor, repulsion_tensor, attraction_mask, repulsion_mask, lam=self.lam)
+        return arloss(attraction_tensor, repulsion_tensor, attraction_mask, repulsion_mask, boxes_mask, lam=self.lam)

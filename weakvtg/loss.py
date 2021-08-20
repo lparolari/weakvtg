@@ -25,32 +25,28 @@ class WeakVtgLoss(nn.Module):
 
         (predicted_score_positive, predicted_score_negative) = output[0]  # [b, n_chunks, n_boxes]
 
-        def _get_scores(scores, phrases_mask, boxes_mask, boxes_fill_value):
+        def _get_scores(scores, phrases_mask, boxes_mask):
             """
-            Apply scores pipeline which (1) sets padded bounding box scores to 1 and -1 respectively for positive
-            and negative phrases and (2) filter out padded phrases.
+            Fill all padded scores with zeros.
             """
-            # gradient on padded boxes could affect results, for this reason we masked-fill padded boxes with 1 or -1
-            # respectively for positive and negative phrases in order to match target value and don't let the gradient
-            # to care about this scores.
             n_ph = scores.size()[-2]
+
             boxes_mask = boxes_mask.unsqueeze(-2).repeat(1, n_ph, 1)
 
-            scores = torch.masked_fill(scores, boxes_mask == 0, value=boxes_fill_value)
-
-            # also in this case, in order to save gradient issues, we completely remove padded phrases from scores.
-            scores = filter_scores(scores, phrases_mask)
+            scores = torch.masked_fill(scores, phrases_mask == 0, value=0)
+            scores = torch.masked_fill(scores, boxes_mask == 0, value=0)
 
             return scores
 
         score_positive_mask = phrases_synthetic
         score_negative_mask = phrases_synthetic_negative
-        score_positive = _get_scores(predicted_score_positive, score_positive_mask, boxes_mask, boxes_fill_value=+1)
-        score_negative = _get_scores(predicted_score_negative, score_negative_mask, boxes_mask, boxes_fill_value=-1)
+        score_positive = _get_scores(predicted_score_positive, score_positive_mask, boxes_mask)
+        score_negative = _get_scores(predicted_score_negative, score_negative_mask, boxes_mask)
 
         l_disc = self.loss(
             (score_positive, score_positive_mask),
-            (score_negative, score_negative_mask)
+            (score_negative, score_negative_mask),
+            boxes_mask
         )
 
         def get_validation(boxes, boxes_gt, scores, mask):
