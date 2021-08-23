@@ -180,7 +180,7 @@ def get_phrases_representation(phrases_emb, phrases_length, mask, out_features, 
     # note: we need to fix the bug about phrases with lengths 0. On cpu required by torch
     phrases_length_clamp = phrases_length.view(-1).clamp(min=1).cpu()
     phrases_pack_emb = rnn.pack_padded_sequence(phrases_emb, phrases_length_clamp, enforce_sorted=False)
-    phrases_x_o, (phrases_x_h, phrases_x_c) = recurrent_network(phrases_pack_emb)
+    phrases_x_o, *_ = recurrent_network(phrases_pack_emb)
     phrases_x_o = rnn.pad_packed_sequence(phrases_x_o, batch_first=False)  # (values, length)
 
     # due to padding we need to get indexes in this way. On device now.

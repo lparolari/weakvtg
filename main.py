@@ -21,6 +21,16 @@ from weakvtg.train import train, load_model, test_example, test
 from weakvtg.vocabulary import load_vocab
 
 
+def make_phrases_recurrent(rnn_type):
+    assert rnn_type in ["lstm", "rnn"], f"The RNN type '{rnn_type}' you provided is not supported. Please use 'rnn' " \
+                                        f"or 'lstm'."
+
+    if rnn_type == "lstm":
+        return nn.LSTM
+    if rnn_type == "rnn":
+        return nn.RNN
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train, validate, test or plot some example with `weakvtg` model.")
 
@@ -37,6 +47,7 @@ def parse_args():
     parser.add_argument("--text-embedding-size", type=int, default=None)
     parser.add_argument("--text-semantic-size", type=int, default=None)
     parser.add_argument("--text-semantic-num-layers", type=int, default=None)
+    parser.add_argument("--text-recurrent-network-type", type=str, default=None)
     parser.add_argument("--image-embedding-size", type=int, default=None)
     parser.add_argument("--image-semantic-size", type=int, default=None)
     parser.add_argument("--image-semantic-hidden-layers", type=int, default=None)
@@ -78,6 +89,7 @@ if __name__ == "__main__":
         "text_embedding_size": args.text_embedding_size,
         "text_semantic_size": args.text_semantic_size,
         "text_semantic_num_layers": args.text_semantic_num_layers,
+        "text_recurrent_network_type": args.text_recurrent_network_type,
         "image_embedding_size": args.image_embedding_size,
         "image_semantic_size": args.image_semantic_size,
         "image_semantic_hidden_layers": args.image_semantic_hidden_layers,
@@ -102,6 +114,7 @@ if __name__ == "__main__":
     text_embedding_size = config["text_embedding_size"]
     text_semantic_size = config["text_semantic_size"]
     text_semantic_num_layers = config["text_semantic_num_layers"]
+    text_recurrent_network_type = config["text_recurrent_network_type"]
     image_embedding_size = config["image_embedding_size"]
     image_semantic_size = config["image_semantic_size"]
     image_semantic_hidden_layers = config["image_semantic_hidden_layers"]
@@ -144,9 +157,11 @@ if __name__ == "__main__":
 
     phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=text_embedding_size, freeze=True)
 
-    phrases_recurrent_net = init_rnn(nn.LSTM(text_embedding_size, text_semantic_size,
-                                             num_layers=text_semantic_num_layers, bidirectional=False,
-                                             batch_first=False))
+    phrases_recurrent_layer = make_phrases_recurrent(rnn_type=text_recurrent_network_type)
+    phrases_recurrent_net = phrases_recurrent_layer(text_embedding_size, text_semantic_size,
+                                                    num_layers=text_semantic_num_layers, bidirectional=False,
+                                                    batch_first=False)
+    phrases_recurrent_net = init_rnn(phrases_recurrent_net)
 
     image_embedding_net = create_image_embedding_network(image_embedding_size, image_semantic_size,
                                                          n_hidden_layer=image_semantic_hidden_layers)
