@@ -126,9 +126,20 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         y[..., 3] = x[..., 3] - x[..., 1]
         return y
 
-    def ph(x): return " ".join([vocab.vocab.itos_[idx] for idx in x])
+    def ph(x): return " ".join([vocab.vocab.itos_[idx] if vocab.vocab.itos_[idx] != "<unk>" else "" for idx in x])
 
     def pp_score(score): return f"min={np.min(score):.3f}, max={np.max(score):.3f}, avg={np.mean(score):.3f}"
+
+    def get_iou_all_boxes(phrases_2_crd, boxes_pred_topk):
+        # Up to now, the model only compute the IoU between the best (greater score) box and the ground truth.
+        # However, we want to know the IoU of all top-k boxes.
+        from weakvtg.anchors import bbox_final_iou as iou
+
+        n_box = boxes_pred_topk.size()[-2]
+        boxes_gt = phrases_2_crd.unsqueeze(-2).repeat(1, 1, n_box, 1)
+        iou_all = iou(boxes_pred_topk, boxes_gt)
+
+        return iou_all
 
     def show_image(image, title, sentence, queries, boxes_pred, boxes_gt):
         """
@@ -249,6 +260,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         score_negative_ = score_negative[0].detach().numpy()
         loss_ = loss.item()
         iou_ = iou[0].detach().numpy()
+        iou_all_ = get_iou_all_boxes(phrases_2_crd, boxes_pred_topk)[0].detach().numpy()
         accuracy_ = accuracy.item()
         p_accuracy_ = p_accuracy.item()
         boxes_pred_ = scale(boxes_pred_topk[0].detach().numpy(), width=width_, height=height_)
@@ -271,7 +283,8 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
             print(f"({i}) ({j}) Scores+: {pp_score(score_positive_[j])}")
             if j < score_negative_.shape[0]:
                 print(f"({i}) ({j}) Scores-: {pp_score(score_negative_[j])}")
-            print(f"({i}) ({j}) IoU: {iou_[j]}")
+            print(f"({i}) ({j}) IoU (model): {iou_[j]}")
+            print(f"({i}) ({j}) IoU (top-k): {iou_all_[j]}")
             print(f"({i}) ({j}) Best pred: {boxes_pred_[j]}")
             print(f"({i}) ({j}) Boxes GT: {boxes_gt_[j]}")
 
