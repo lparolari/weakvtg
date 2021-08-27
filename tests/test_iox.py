@@ -1,9 +1,15 @@
 import pickle
 
 import cv2
-from PIL import Image
 
-from weakvtg.iox import load_json, load_pickle, load_image
+from weakvtg.iox import load_txt, load_json, load_pickle, load_image
+
+
+def test_load_txt(tmp_path):
+    txt_path = tmp_path / "foo.txt"
+    txt_path.write_text("foo\nbar\nbaz 123")
+
+    assert load_txt(txt_path) == ["foo", "bar", "baz 123"]
 
 
 def test_load_json(tmp_path):

@@ -3,6 +3,11 @@ import pickle
 import cv2
 
 
+def load_txt(filename):
+    with open(filename, "r") as f:
+        return f.read().split("\n")
+
+
 def load_json(filename):
     with open(filename, "r") as f:
         data = json.load(f)
