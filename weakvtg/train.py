@@ -8,6 +8,7 @@ import torch
 import wandb
 
 from weakvtg import iox
+from weakvtg.classes import get_class
 from weakvtg.loss import get_boxes_predicted
 from weakvtg.mask import get_synthetic_mask
 from weakvtg.prettyprint import pp
@@ -108,7 +109,7 @@ def test(loader, model, optimizer, criterion):
     logging.info(f"Testing completed. {pp(test_out)}")
 
 
-def test_example(dataset, loader, model, optimizer, criterion, vocab):
+def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
     def scale(boxes, *, width, height):
         scaled_boxes = np.zeros_like(boxes)
         scaled_boxes[..., 0] = np.round(boxes[..., 0] * width)
@@ -140,6 +141,12 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         iou_all = iou(boxes_pred_topk, boxes_gt)
 
         return iou_all
+
+    def get_predicted_boxes(boxes, index, n_ph):
+        boxes = boxes.unsqueeze(-3).repeat(1, n_ph, 1, 1)
+        index = index.unsqueeze(-1).repeat(1, 1, 1, 4)
+
+        return torch.gather(boxes, dim=-2, index=index)
 
     def show_image(image, title, sentence, queries, boxes_pred, boxes_gt):
         """
@@ -229,21 +236,29 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         phrases_negative = batch["phrases_negative"]
         phrases_mask_neg = batch["phrases_mask_negative"]
         phrases_2_crd = batch["phrases_2_crd"]
+        phrases_2_crd_index = batch["phrases_2_crd_index"]
         phrases_synthetic = get_synthetic_mask(phrases_mask)
+        classes_prob = batch["pred_cls_prob"]
+        classes_pred = torch.argmax(classes_prob, dim=-1)
 
         n_ph = phrases.size()[-2]
 
-        # --- forward model
+        # --- forward model start
         optimizer.zero_grad()
         output = model(batch)
         loss, iou, accuracy, p_accuracy = criterion(batch, output)
         score_positive, score_negative = output[0]
-        # Instead of retrieving the single best bounding box, we retrieve top-K
+
         boxes_pred = get_boxes_predicted(boxes, score_positive, phrases_synthetic)
+
         scores_topk, scores_topk_index = torch.topk(score_positive, k=1)
-        # quick and dirty way to gather to gather from boxes the top-k score :)
-        boxes_pred_topk = torch.gather(boxes.unsqueeze(-3).repeat(1, n_ph, 1, 1), dim=-2, index=scores_topk_index.unsqueeze(-1).repeat(1, 1, 1, 4))
-        # --- forward model
+
+        boxes_pred_topk = get_predicted_boxes(boxes, scores_topk_index, n_ph=n_ph)
+
+        classes_pred_topk = torch.gather(classes_pred.unsqueeze(-2).repeat(1, n_ph, 1), dim=-1, index=scores_topk_index)
+        classes_gt = torch.gather(classes_pred.unsqueeze(-2).repeat(1, n_ph, 1), dim=-1,
+                                  index=phrases_2_crd_index.unsqueeze(-1))
+        # --- forward model end
 
         height_ = height.detach().numpy()[0]
         width_ = width.detach().numpy()[0]
@@ -265,8 +280,15 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
         p_accuracy_ = p_accuracy.item()
         boxes_pred_ = scale(boxes_pred_topk[0].detach().numpy(), width=width_, height=height_)
         boxes_gt_ = scale(phrases_2_crd[0].detach().numpy(), width=width_, height=height_)
+        classes_pred_topk_ = classes_pred_topk[0].detach().numpy()
+        boxes_pred_classes_str_ = [get_class(classes, cls) for phrase in classes_pred_topk_ for cls in phrase]
+        classes_gt_ = classes_gt[0].detach().numpy()
+        classes_gt_str_ = [get_class(classes, cls) for phrase in classes_gt_ for cls in phrase]
 
         img_ = iox.load_image(os.path.join(dataset.image_filepath, f"{idx_}.jpg"))
+
+        # if "left of pe" not in sentence_str_:
+        #     continue
 
         print(f"({i}) Example: pos={idx_}, neg={idx_negative_}")
         print(f"({i}) Image: w={width_}, h={height_}")
@@ -286,7 +308,9 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab):
             print(f"({i}) ({j}) IoU (model): {iou_[j]}")
             print(f"({i}) ({j}) IoU (top-k): {iou_all_[j]}")
             print(f"({i}) ({j}) Best pred: {boxes_pred_[j]}")
+            print(f"({i}) ({j}) Best pred classes: {boxes_pred_classes_str_[j]}")
             print(f"({i}) ({j}) Boxes GT: {boxes_gt_[j]}")
+            print(f"({i}) ({j}) Boxes GT classes: {classes_gt_str_[j]}")
 
         show_image(img_, f"{idx_} (#{i}): {sentence_str_}", sentence_str_, phrases_str_, boxes_pred_, boxes_gt_)
 

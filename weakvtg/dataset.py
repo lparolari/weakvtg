@@ -1,4 +1,3 @@
-import functools
 import os
 import random
 
@@ -135,7 +134,7 @@ def collate_fn(batch, tokenizer, vocab):
         "phrases_negative": phrases_negative,
         "phrases_mask_negative": phrases_mask_negative,
         "phrases_2_crd": phrases_2_crd,
-        "phrases_2_crd_index": phrases_2_crd_index,
+        "phrases_2_crd_index": torch.tensor(phrases_2_crd_index, dtype=torch.long),
     }
 
 
@@ -177,9 +176,6 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
         # available now, so we recompute it by matching the ground truth with predicted boxes selecting the one
         # with maximum IoU.
 
-        # Please note also that this function must be execute BEFORE tha pad function, because it could eliminate
-        # some bounding box from *example* dict.
-
         pred_boxes = torch.tensor(example["pred_boxes"])
         phrases_2_crd = torch.tensor(example["phrases_2_crd"])
 
@@ -199,7 +195,9 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
     example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
 
-    gt_box_index()
     pad_boxes()
+
+    # We run this after padding to prevent ground truth be out of bounds
+    gt_box_index()
 
     return example

@@ -11,6 +11,7 @@ import torchtext
 import wandb
 
 from weakvtg.config import get_config
+from weakvtg.classes import get_classes
 from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss
 from weakvtg.math import get_argmax, get_max
@@ -217,7 +218,8 @@ if __name__ == "__main__":
         dataset = valid_dataset
         loader = torchdata.DataLoader(dataset, batch_size=1, collate_fn=collate_function, num_workers=num_workers,
                                       prefetch_factor=prefetch_factor)
-        test_example(dataset, loader, model, optimizer, criterion, vocab=vocab)
+        classes = get_classes("data/objects_vocab.txt")
+        test_example(dataset, loader, model, optimizer, criterion, vocab=vocab, classes=classes)
 
     if args.workflow == "train":
         do_train()
