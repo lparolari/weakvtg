@@ -142,7 +142,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
 
         return iou_all
 
-    def get_predicted_boxes(boxes, index, n_ph):
+    def get_boxes_predicted_topk(boxes, index, n_ph):
         boxes = boxes.unsqueeze(-3).repeat(1, n_ph, 1, 1)
         index = index.unsqueeze(-1).repeat(1, 1, 1, 4)
 
@@ -253,11 +253,11 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
 
         scores_topk, scores_topk_index = torch.topk(score_positive, k=1)
 
-        boxes_pred_topk = get_predicted_boxes(boxes, scores_topk_index, n_ph=n_ph)
+        boxes_pred_topk = get_boxes_predicted_topk(boxes, scores_topk_index, n_ph=n_ph)
 
         classes_pred_topk = torch.gather(classes_pred.unsqueeze(-2).repeat(1, n_ph, 1), dim=-1, index=scores_topk_index)
         classes_gt = torch.gather(classes_pred.unsqueeze(-2).repeat(1, n_ph, 1), dim=-1,
-                                  index=phrases_2_crd_index.unsqueeze(-1))
+                                  index=phrases_2_crd_index)
         # --- forward model end
 
         height_ = height.detach().numpy()[0]
@@ -313,6 +313,52 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
             print(f"({i}) ({j}) Boxes GT classes: {classes_gt_str_[j]}")
 
         show_image(img_, f"{idx_} (#{i}): {sentence_str_}", sentence_str_, phrases_str_, boxes_pred_, boxes_gt_)
+
+
+def classes_frequency(loader, model, optimizer, classes):
+    # TODO: replace copy paste to function calls
+
+    pred_classes_counter = [0] * 1602  # TODO: hardcoded const
+    gt_classes_counter = [0] * 1602
+
+    for i, batch in enumerate(loader):
+        phrases = batch["phrases"]
+        phrases_2_crd_index = batch["phrases_2_crd_index"]
+        classes_prob = batch["pred_cls_prob"]
+        classes_pred = torch.argmax(classes_prob, dim=-1)
+
+        n_ph = phrases.size()[-2]
+
+        # --- forward model start
+        optimizer.zero_grad()
+        output = model(batch)
+        score_positive, score_negative = output[0]
+
+        scores_topk, scores_topk_index = torch.topk(score_positive, k=1)
+
+        classes_pred_topk = torch.gather(classes_pred.unsqueeze(-2).repeat(1, n_ph, 1), dim=-1,
+                                         index=scores_topk_index)
+
+        classes_gt = torch.gather(classes_pred.unsqueeze(-2).repeat(1, n_ph, 1), dim=-1,
+                                  index=phrases_2_crd_index)
+        # --- forward model end
+
+        phrases_ = phrases[0].detach().numpy()
+        classes_pred_topk_ = classes_pred_topk[0].detach().numpy()
+        classes_gt_ = classes_gt[0].detach().numpy()
+
+        for j in range(len(phrases_)):
+            pred_classes_counter[classes_pred_topk_[j][0]] += 1
+            gt_classes_counter[classes_gt_[j][0]] += 1
+
+    print("class,pred,gt")
+    for j in range(len(pred_classes_counter)):
+        c_pred, c_gt = pred_classes_counter[j], gt_classes_counter[j]
+
+        if c_pred == 0 and c_gt == 0:
+            continue
+
+        print(f"{get_class(classes, j)},{c_pred},{c_gt}")
 
 
 def save_model(model, epoch, optimizer=None, scheduler=None, folder=None, suffix=None):

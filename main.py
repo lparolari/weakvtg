@@ -18,7 +18,7 @@ from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
     get_phrases_representation, get_phrases_embedding
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
-from weakvtg.train import train, load_model, test_example, test
+from weakvtg.train import train, load_model, test_example, test, classes_frequency
 from weakvtg.vocabulary import load_vocab
 
 
@@ -59,7 +59,8 @@ def parse_args():
     parser.add_argument("--suffix", type=str, default=None)
     parser.add_argument("--restore", type=str, default=None)
 
-    parser.add_argument("--workflow", type=str, choices=["train", "valid", "test", "test-example"], default="train")
+    parser.add_argument("--workflow", type=str, choices=["train", "valid", "test", "test-example", "classes-frequency"],
+                        default="train")
 
     parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
     parser.add_argument("--log-file", dest="log_file", type=str, default=None, help="Log filename")
@@ -221,13 +222,20 @@ if __name__ == "__main__":
         classes = get_classes("data/objects_vocab.txt")
         test_example(dataset, loader, model, optimizer, criterion, vocab=vocab, classes=classes)
 
+    def do_classes_frequency():
+        dataset = test_dataset
+        loader = torchdata.DataLoader(dataset, batch_size=1, collate_fn=collate_function, num_workers=num_workers,
+                                      prefetch_factor=prefetch_factor)
+        classes = get_classes("data/objects_vocab.txt")
+        classes_frequency(loader, model, optimizer, classes)
+
     if args.workflow == "train":
         do_train()
-
     if args.workflow == "test":
         do_test()
-
     if args.workflow == "test-example":
         do_test_example()
+    if args.workflow == "classes-frequency":
+        do_classes_frequency()
 
     print("Goodbye, World!")
