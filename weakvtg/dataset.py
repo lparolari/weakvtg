@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset
 from torch.utils.data.dataset import T_co
 
-from weakvtg import iox, bbox
+from weakvtg import iox, bbox, anchors
 from weakvtg.padder import get_phrases_tensor, get_padded_examples, get_number_examples, get_max_length_examples, \
     get_max_length_phrases, get_indexed_phrases_per_example
 from weakvtg.utils import pivot
@@ -83,6 +83,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases = batch["phrases"]  # [b, n_ph+, n_words+]
     phrases_negative = batch["phrases_negative"]  # [b, n_ph-, n_words-]
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
+    phrases_2_crd_index = batch["phrases_2_crd_index"]  # [b, n_ph]
 
     def _get_padded_phrases_2_crd(phrases_2_crd):
         dim = (get_number_examples(phrases_2_crd),
@@ -112,6 +113,9 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_negative, phrases_mask_negative = get_phrases_tensor(phrases_negative, tokenizer=tokenizer, vocab=vocab)
     phrases_2_crd, _ = _get_padded_phrases_2_crd(phrases_2_crd)
 
+    # Please note that we do not pad `phrases_2_crd_index` as they are index and it would not make sense. The user
+    # is responsible to mask the result obtained with this index.
+
     return {
         "id": torch.tensor(batch["id"], dtype=torch.long),
         "id_negative": torch.tensor(batch["id_negative"], dtype=torch.long),
@@ -131,6 +135,7 @@ def collate_fn(batch, tokenizer, vocab):
         "phrases_negative": phrases_negative,
         "phrases_mask_negative": phrases_mask_negative,
         "phrases_2_crd": phrases_2_crd,
+        "phrases_2_crd_index": phrases_2_crd_index,
     }
 
 
@@ -140,10 +145,6 @@ def read_index(filename: str):
 
 
 def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
-    example["id"] = int(example["id"])
-    example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
-    example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
-
     def pad_boxes():
         """
         Pad boxes and update `example` as a side effect.
@@ -170,6 +171,35 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
 
         example["pred_active_box_index"] = [random.randrange(0, n_actual) for _ in range(n_active_box)]
 
+    def gt_box_index():
+        # Please note that this process should be moved in the make dataset workflow, i.e., the input file should
+        # contain information on the index of the ground truth bounding box. However, this information is not
+        # available now, so we recompute it by matching the ground truth with predicted boxes selecting the one
+        # with maximum IoU.
+
+        # Please note also that this function must be execute BEFORE tha pad function, because it could eliminate
+        # some bounding box from *example* dict.
+
+        pred_boxes = torch.tensor(example["pred_boxes"])
+        phrases_2_crd = torch.tensor(example["phrases_2_crd"])
+
+        n_box = pred_boxes.size()[-2]
+        n_ph = phrases_2_crd.size()[-2]
+
+        pred_boxes = pred_boxes.unsqueeze(-3).repeat(n_ph, 1, 1)
+        phrases_2_crd = phrases_2_crd.unsqueeze(-2).repeat(1, n_box, 1)
+
+        iou = anchors.bbox_final_iou(pred_boxes, phrases_2_crd)
+
+        best_iou_index = torch.argmax(iou, dim=-1)
+
+        example["phrases_2_crd_index"] = best_iou_index.detach().numpy().tolist()
+
+    example["id"] = int(example["id"])
+    example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
+    example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
+
+    gt_box_index()
     pad_boxes()
 
     return example
