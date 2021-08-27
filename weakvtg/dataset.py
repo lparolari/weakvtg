@@ -82,7 +82,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases = batch["phrases"]  # [b, n_ph+, n_words+]
     phrases_negative = batch["phrases_negative"]  # [b, n_ph-, n_words-]
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
-    phrases_2_crd_index = batch["phrases_2_crd_index"]  # [b, n_ph]
+    phrases_2_crd_index = batch["phrases_2_crd_index"]  # [b, n_ph, 1]
 
     def _get_padded_phrases_2_crd(phrases_2_crd):
         dim = (get_number_examples(phrases_2_crd),
@@ -91,6 +91,15 @@ def collate_fn(batch, tokenizer, vocab):
 
         # please note that `padding_value=0` produces an invalid mask, however, this mask is not used
         return get_padded_examples(phrases_2_crd, padding_value=0, dtype=torch.float, padding_dim=dim)
+
+    def _get_padded_phrases_2_crd_index(phrases_2_crd_index):
+        dim = (get_number_examples(phrases_2_crd_index),
+               get_max_length_examples(phrases_2_crd_index),
+               get_max_length_phrases(phrases_2_crd_index))
+
+        # please note that `padding_value=0` is meaningless, however, padding on index do not matter, the user
+        # is responsible to mask results obtained with this index
+        return get_padded_examples(phrases_2_crd_index, padding_value=0, dtype=torch.long, padding_dim=dim)
 
     def _get_padded_sentence(sentence):
         indexed_sentences = get_indexed_phrases_per_example([sentence], tokenizer=tokenizer, vocab=vocab)
@@ -111,9 +120,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases, phrases_mask = get_phrases_tensor(phrases, tokenizer=tokenizer, vocab=vocab)
     phrases_negative, phrases_mask_negative = get_phrases_tensor(phrases_negative, tokenizer=tokenizer, vocab=vocab)
     phrases_2_crd, _ = _get_padded_phrases_2_crd(phrases_2_crd)
-
-    # Please note that we do not pad `phrases_2_crd_index` as they are index and it would not make sense. The user
-    # is responsible to mask the result obtained with this index.
+    phrases_2_crd_index, _ = _get_padded_phrases_2_crd_index(phrases_2_crd_index)
 
     return {
         "id": torch.tensor(batch["id"], dtype=torch.long),
@@ -134,7 +141,7 @@ def collate_fn(batch, tokenizer, vocab):
         "phrases_negative": phrases_negative,
         "phrases_mask_negative": phrases_mask_negative,
         "phrases_2_crd": phrases_2_crd,
-        "phrases_2_crd_index": torch.tensor(phrases_2_crd_index, dtype=torch.long),
+        "phrases_2_crd_index": phrases_2_crd_index
     }
 
 
@@ -187,7 +194,7 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
 
         iou = anchors.bbox_final_iou(pred_boxes, phrases_2_crd)
 
-        best_iou_index = torch.argmax(iou, dim=-1)
+        best_iou_index = torch.argmax(iou, dim=-1).unsqueeze(-1)
 
         example["phrases_2_crd_index"] = best_iou_index.detach().numpy().tolist()
 
