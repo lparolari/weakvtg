@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 
@@ -177,6 +178,23 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
 
         example["pred_active_box_index"] = [random.randrange(0, n_actual) for _ in range(n_active_box)]
 
+    def remove_background():
+        """
+        Remove bounding boxes tagged with class `__background__` and update `example` as a side effect. [^1]
+
+        The class `__background__` is included within the classes score and its purpose is to specify whether a
+        bounding box is "interesting" or not. If the bounding box is not interesting than its class is set to
+        `__background__` otherwise it is set to one of the other 1600 classes.
+
+        Please note that `__background__` is an artificial class and it has index 0.
+
+        [^1]: in fact, we do not completely remove the boxes, instead we mask them.
+        """
+        boxes_mask = torch.tensor(example["pred_boxes_mask"])
+        boxes_class = get_boxes_class(torch.tensor(example["pred_cls_prob"]))
+
+        example["pred_boxes_mask"] = get_boxes_mask_no_background(boxes_mask, boxes_class).detach().tolist()
+
     def gt_box_index():
         # Please note that this process should be moved in the make dataset workflow, i.e., the input file should
         # contain information on the index of the ground truth bounding box. However, this information is not
@@ -203,8 +221,16 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
 
     pad_boxes()
-
-    # We run this after padding to prevent ground truth be out of bounds
-    gt_box_index()
+    gt_box_index()  # requires padding to prevent ground truth to be out of bounds
+    remove_background()  # requires padding because it leverages on same number of bounding box
 
     return example
+
+
+def get_boxes_mask_no_background(boxes_mask, boxes_class, background_class_index=0):
+    is_not_background = boxes_class != background_class_index
+    return torch.logical_and(boxes_mask, is_not_background)
+
+
+def get_boxes_class(boxes_class_probability):
+    return torch.argmax(boxes_class_probability, dim=-1)
