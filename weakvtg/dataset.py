@@ -203,14 +203,18 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
 
         pred_boxes = torch.tensor(example["pred_boxes"])
         phrases_2_crd = torch.tensor(example["phrases_2_crd"])
+        boxes_mask = torch.tensor(example["pred_boxes_mask"])
 
         n_box = pred_boxes.size()[-2]
         n_ph = phrases_2_crd.size()[-2]
 
         pred_boxes = pred_boxes.unsqueeze(-3).repeat(n_ph, 1, 1)
         phrases_2_crd = phrases_2_crd.unsqueeze(-2).repeat(1, n_box, 1)
+        boxes_mask = boxes_mask.unsqueeze(-2).repeat(n_ph, 1)
 
         iou = anchors.bbox_final_iou(pred_boxes, phrases_2_crd)
+
+        iou = torch.masked_fill(iou, boxes_mask == 0, value=0)  # we avoid picking the index of a masked bounding box
 
         best_iou_index = torch.argmax(iou, dim=-1).unsqueeze(-1)
 
@@ -221,8 +225,13 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
 
     pad_boxes()
-    gt_box_index()  # requires padding to prevent ground truth to be out of bounds
-    remove_background()  # requires padding because it leverages on same number of bounding box
+
+    # requires `pad_boxes` because it leverages on same number of bounding box
+    remove_background()
+
+    # requires `pad_boxes` to prevent ground truth to be out of bounds,
+    # requires `remove_background` to chose a valid bb
+    gt_box_index()
 
     return example
 
