@@ -10,6 +10,7 @@ __defaults = {
     "valid_idx_filepath": "data/referit_raw/val.txt",
     "test_idx_filepath": "data/referit_raw/test.txt",
     "vocab_filepath": "data/referit_raw/vocab.json",
+    "classes_vocab_filepath": "data/objects_vocab.txt",
     "learning_rate": 0.001,
     "text_embedding_size": 300,
     "text_semantic_size": 500,

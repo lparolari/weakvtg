@@ -11,12 +11,12 @@ import torchtext
 import wandb
 
 from weakvtg.config import get_config
-from weakvtg.classes import get_classes
+from weakvtg.classes import get_classes, load_classes
 from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss
-from weakvtg.math import get_argmax, get_max
+from weakvtg.math import get_argmax, get_max, masked_mean
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
-    get_phrases_representation, get_phrases_embedding
+    get_phrases_representation, get_phrases_embedding, get_concept_similarity
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
 from weakvtg.train import train, load_model, test_example, test, classes_frequency
 from weakvtg.vocabulary import load_vocab
@@ -44,6 +44,7 @@ def parse_args():
     parser.add_argument("--valid-idx-filepath", type=str, default=None)
     parser.add_argument("--test-idx-filepath", type=str, default=None)
     parser.add_argument("--vocab-filepath", type=str, default=None)
+    parser.add_argument("--classes-vocab-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--text-embedding-size", type=int, default=None)
     parser.add_argument("--text-semantic-size", type=int, default=None)
@@ -87,6 +88,7 @@ if __name__ == "__main__":
         "valid_idx_filepath": args.valid_idx_filepath,
         "test_idx_filepath": args.test_idx_filepath,
         "vocab_filepath": args.vocab_filepath,
+        "classes_vocab_filepath": args.classes_vocab_filepath,
         "learning_rate": args.learning_rate,
         "text_embedding_size": args.text_embedding_size,
         "text_semantic_size": args.text_semantic_size,
@@ -112,6 +114,7 @@ if __name__ == "__main__":
     valid_idx_filepath = config["valid_idx_filepath"]
     test_idx_filepath = config["test_idx_filepath"]
     vocab_filepath = config["vocab_filepath"]
+    classes_vocab_filepath = config["classes_vocab_filepath"]
     learning_rate = config["learning_rate"]
     text_embedding_size = config["text_embedding_size"]
     text_semantic_size = config["text_semantic_size"]
@@ -156,8 +159,10 @@ if __name__ == "__main__":
     tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(get_nlp()))
 
     vocab = load_vocab(vocab_filepath)
+    classes_vocab = load_classes(classes_vocab_filepath)
 
     phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=text_embedding_size, freeze=True)
+    classes_embedding_net = create_phrases_embedding_network(vocab, embedding_size=text_embedding_size, freeze=True)
 
     phrases_recurrent_layer = make_phrases_recurrent(rnn_type=text_recurrent_network_type)
     phrases_recurrent_net = phrases_recurrent_layer(text_embedding_size, text_semantic_size,
@@ -168,11 +173,14 @@ if __name__ == "__main__":
     image_embedding_net = create_image_embedding_network(image_embedding_size, image_semantic_size,
                                                          n_hidden_layer=image_semantic_hidden_layers)
 
+    _get_classes_embedding = functools.partial(get_phrases_embedding, embedding_network=classes_embedding_net)
     _get_phrases_embedding = functools.partial(get_phrases_embedding, embedding_network=phrases_embedding_net)
     _get_phrases_representation = functools.partial(get_phrases_representation,
                                                     recurrent_network=phrases_recurrent_net,
                                                     out_features=text_semantic_size,
                                                     device=device)
+    _get_concept_similarity = functools.partial(get_concept_similarity,
+                                                f_aggregate=masked_mean, f_similarity=torch.cosine_similarity)
 
     # setup dataloader
     collate_function = functools.partial(collate_fn, tokenizer=tokenizer, vocab=vocab)
@@ -187,8 +195,10 @@ if __name__ == "__main__":
         phrases_embedding_net=phrases_embedding_net,
         phrases_recurrent_net=phrases_recurrent_net,
         image_embedding_net=image_embedding_net,
+        get_classes_embedding=_get_classes_embedding,
         get_phrases_embedding=_get_phrases_embedding,
         get_phrases_representation=_get_phrases_representation,
+        get_concept_similarity=_get_concept_similarity,
         f_similarity=F.cosine_similarity
     )
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)

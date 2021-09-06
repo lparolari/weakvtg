@@ -34,7 +34,7 @@ class MockModel(Model):
 
 class WeakVtgModel(Model):
     def __init__(self, phrases_embedding_net, phrases_recurrent_net, image_embedding_net,
-                 get_phrases_embedding, get_phrases_representation,
+                 get_classes_embedding, get_phrases_embedding, get_phrases_representation, get_concept_similarity,
                  f_similarity):
         super().__init__()
 
@@ -42,8 +42,10 @@ class WeakVtgModel(Model):
         self.phrases_recurrent_net = phrases_recurrent_net
         self.image_embedding_net = image_embedding_net
 
+        self.get_classes_embedding = get_classes_embedding
         self.get_phrases_embedding = get_phrases_embedding
         self.get_phrases_representation = get_phrases_representation
+        self.get_concept_similarity = get_concept_similarity
 
         self.f_similarity = f_similarity
 
@@ -52,17 +54,23 @@ class WeakVtgModel(Model):
         boxes = batch["pred_boxes"]                             # [b, n_boxes, 4]
         boxes_mask = batch["pred_boxes_mask"]                   # [b, n_boxes, 1]
         boxes_features = batch["pred_boxes_features"]           # [b, n_boxes, 2048]
+        boxes_class_prob = batch["pred_cls_prob"]               # [b, n_boxes, n_class]
         phrases = batch["phrases"]                              # [b, n_ph+, n_words+]
         phrases_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
         phrases_negative = batch["phrases_negative"]            # [b, n_ph-, n_words-]
         phrases_mask_negative = batch["phrases_mask_negative"]  # [b, n_ph-, n_words-]
 
+        box_class = get_box_class(boxes_class_prob)  # [b, n_boxes]
+
         n_boxes = pred_n_boxes[0]
         n_ph_pos = phrases.size()[1]
         n_ph_neg = phrases_negative.size()[1]
 
+        _get_concept_similarity = self.get_concept_similarity
+        _get_classes_embedding = self.get_classes_embedding
+        _get_phrases_embedding = self.get_phrases_embedding
         _get_phrases_features = functools.partial(get_phrases_features,
-                                                  get_phrases_embedding=self.get_phrases_embedding,
+                                                  get_phrases_embedding=_get_phrases_embedding,
                                                   get_phrases_representation=self.get_phrases_representation)
         _get_image_representation = functools.partial(get_image_representation, embedding_net=self.image_embedding_net)
 
@@ -91,6 +99,16 @@ class WeakVtgModel(Model):
         negative_logits = predict_logits(img_x_negative, phrases_x_negative, f_similarity=self.f_similarity)
         negative_logits = torch.masked_fill(negative_logits, get_synthetic_mask(phrases_mask_negative) == 0, value=+1)
         negative_logits = torch.masked_fill(negative_logits, _boxes_mask == 0, value=0)
+
+        # scale logits given classes similarity
+        def concept_similarity(phrase, phrase_mask):
+            phrase_mask = phrase_mask.unsqueeze(-1)
+            box_class_embedding = _get_classes_embedding(box_class)
+            phrase_embedding = _get_phrases_embedding(phrase)
+            return _get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask)
+
+        positive_logits = positive_logits * concept_similarity(phrases, phrases_mask)
+        negative_logits = negative_logits * concept_similarity(phrases_negative, phrases_mask_negative)
 
         return (positive_logits, negative_logits),
 
@@ -197,6 +215,39 @@ def get_phrases_representation(phrases_emb, phrases_length, mask, out_features, 
     phrases_x_norm = F.normalize(phrases_x, p=1, dim=-1)
 
     return phrases_x_norm
+
+
+def get_box_class(probability):
+    return torch.argmax(probability, dim=-1)
+
+
+def get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f_aggregate, f_similarity):
+    """
+    Return the similarity between bounding box's class embedding (i.e., textual representation) and phrase.
+
+    Please note that we mask `phrase_embedding` with `phrase_mask` in order to inhibit contribution from masked words
+    computed by `f_aggregate`. However, the tensor should be already masked.
+
+    :param box_class_embedding: A [*, d1, d4] tensor
+    :param phrase_embedding: A [*, d2, d3, d4] tensor
+    :param phrase_mask: A [*, d2, d3, 1] tensor
+    :param f_aggregate: A function that computes aggregate representation of a phrase
+    :param f_similarity: A similarity function
+    :return: A [*, d1, d2] tensor
+    """
+    n_box = box_class_embedding.size()[-2]
+    n_ph = phrase_embedding.size()[-3]
+
+    box_class_embedding = box_class_embedding.unsqueeze(-3).repeat(1, n_ph, 1, 1)
+
+    # inhibit contributions of padded words in `f_aggregate`
+    phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_mask == 0, value=0)
+
+    phrase_embedding = f_aggregate(phrase_embedding, mask=phrase_mask, dim=-2)
+    phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_mask.sum(dim=-2) == 0, value=0)
+    phrase_embedding = phrase_embedding.unsqueeze(-2).repeat(1, 1, n_box, 1)
+
+    return f_similarity(box_class_embedding, phrase_embedding, dim=-1)
 
 
 def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
