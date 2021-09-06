@@ -9,7 +9,7 @@ def test_get_concept_similarity(box_class_embedding, phrase_embedding, phrase_ma
     assert torch.equal(
         get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f_aggregate=f_aggregate,
                                f_similarity=torch.cosine_similarity),
-        torch.tensor([[[1., -1.], [-1., 1.]]])
+        torch.tensor([[[1., 0.], [0., 1.]]])
     )
 
 
@@ -18,7 +18,7 @@ def test_get_concept_similarity_given_padded_phrase(box_class_embedding, phrase_
     assert torch.equal(
         get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask_padded, f_aggregate=f_aggregate,
                                f_similarity=torch.cosine_similarity),
-        torch.tensor([[[1., -1.], [0., 0.]]])
+        torch.tensor([[[1., 0.], [.5, .5]]])
     )
 
 

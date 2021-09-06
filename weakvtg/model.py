@@ -247,7 +247,7 @@ def get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f
     phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_mask.sum(dim=-2) == 0, value=0)
     phrase_embedding = phrase_embedding.unsqueeze(-2).repeat(1, 1, n_box, 1)
 
-    return f_similarity(box_class_embedding, phrase_embedding, dim=-1)
+    return (f_similarity(box_class_embedding, phrase_embedding, dim=-1) + 1) / 2
 
 
 def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
