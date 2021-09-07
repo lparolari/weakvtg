@@ -243,8 +243,8 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
 
         n_ph = phrases.size()[-2]
 
-        if "grass left side" not in ph(sentence[0].detach().numpy()):
-            continue
+        # if "grass left side" not in ph(sentence[0].detach().numpy()):
+        #     continue
 
         # --- forward model start
         optimizer.zero_grad()
@@ -255,7 +255,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
 
         boxes_pred = get_boxes_predicted(boxes, score_positive, phrases_synthetic)
 
-        scores_topk, scores_topk_index = torch.topk(score_positive, k=1)
+        scores_topk, scores_topk_index = torch.topk(score_positive, k=3)
 
         boxes_pred_topk = get_boxes_predicted_topk(boxes, scores_topk_index, n_ph=n_ph)
 
@@ -286,7 +286,8 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
         boxes_pred_ = scale(boxes_pred_topk[0].detach().numpy(), width=width_, height=height_)
         boxes_gt_ = scale(phrases_2_crd[0].detach().numpy(), width=width_, height=height_)
         classes_pred_topk_ = classes_pred_topk[0].detach().numpy()
-        boxes_pred_classes_str_ = [get_class(classes, cls) for phrase in classes_pred_topk_ for cls in phrase]
+        boxes_pred_classes_str_ = np.array([[get_class(classes, cls) for cls in classes_pred_topk_[j]]
+                                            for j in range(len(classes_pred_topk_))])
         classes_gt_ = classes_gt[0].detach().numpy()
         classes_gt_str_ = [get_class(classes, cls) for phrase in classes_gt_ for cls in phrase]
         concept_similarity_topk_ = concept_similarity_topk[0].detach().numpy()
@@ -312,9 +313,9 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
             print(f"({i}) ({j}) IoU (top-k): {iou_all_[j]}")
             print(f"({i}) ({j}) Best pred: {boxes_pred_[j]}")
             print(f"({i}) ({j}) Best pred classes: {boxes_pred_classes_str_[j]}")
+            print(f"({i}) ({j}) Similarity between pred class and phrase: {concept_similarity_topk_[j]}")
             print(f"({i}) ({j}) Boxes GT: {boxes_gt_[j]}")
             print(f"({i}) ({j}) Boxes GT classes: {classes_gt_str_[j]}")
-            print(f"({i}) ({j}) Similarity between pred class and phrase: {concept_similarity_topk_[j]}")
 
         show_image(img_, f"{idx_} (#{i}): {sentence_str_}", sentence_str_, phrases_str_, boxes_pred_, boxes_gt_)
 
