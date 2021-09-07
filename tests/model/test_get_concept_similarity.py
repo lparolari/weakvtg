@@ -8,8 +8,8 @@ from weakvtg.model import get_concept_similarity
 def test_get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f_aggregate):
     assert torch.equal(
         get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f_aggregate=f_aggregate,
-                               f_similarity=torch.cosine_similarity),
-        torch.tensor([[[1., 0.], [0., 1.]]])
+                               f_similarity=torch.cosine_similarity, f_activation=torch.nn.Identity()),
+        torch.tensor([[[1., -1.], [-1., 1.]]])
     )
 
 
@@ -17,8 +17,16 @@ def test_get_concept_similarity_given_padded_phrase(box_class_embedding, phrase_
                                                     f_aggregate):
     assert torch.equal(
         get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask_padded, f_aggregate=f_aggregate,
-                               f_similarity=torch.cosine_similarity),
-        torch.tensor([[[1., 0.], [.5, .5]]])
+                               f_similarity=torch.cosine_similarity, f_activation=torch.nn.Identity()),
+        torch.tensor([[[1., -1.], [0., 0.]]])
+    )
+
+
+def test_get_concept_similarity_given_relu_activation(box_class_embedding, phrase_embedding, phrase_mask, f_aggregate):
+    assert torch.equal(
+        get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f_aggregate=f_aggregate,
+                               f_similarity=torch.cosine_similarity, f_activation=torch.relu),
+        torch.tensor([[[1., 0.], [0., 1.]]])
     )
 
 

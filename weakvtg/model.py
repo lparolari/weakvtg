@@ -224,7 +224,7 @@ def get_box_class(probability):
     return torch.argmax(probability, dim=-1)
 
 
-def get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f_aggregate, f_similarity):
+def get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f_aggregate, f_similarity, f_activation):
     """
     Return the similarity between bounding box's class embedding (i.e., textual representation) and phrase.
 
@@ -236,6 +236,7 @@ def get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f
     :param phrase_mask: A [*, d2, d3, 1] tensor
     :param f_aggregate: A function that computes aggregate representation of a phrase
     :param f_similarity: A similarity function
+    :param f_activation: An activation function, applied on final similarity score
     :return: A [*, d1, d2] tensor
     """
     n_box = box_class_embedding.size()[-2]
@@ -250,7 +251,9 @@ def get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f
     phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_mask.sum(dim=-2) == 0, value=0)
     phrase_embedding = phrase_embedding.unsqueeze(-2).repeat(1, 1, n_box, 1)
 
-    return (f_similarity(box_class_embedding, phrase_embedding, dim=-1) + 1) / 2
+    similarity = f_similarity(box_class_embedding, phrase_embedding, dim=-1)
+
+    return f_activation(similarity)
 
 
 def create_phrases_embedding_network(vocab, embedding_size, freeze=False):

@@ -180,8 +180,8 @@ if __name__ == "__main__":
                                                     recurrent_network=phrases_recurrent_net,
                                                     out_features=text_semantic_size,
                                                     device=device)
-    _get_concept_similarity = functools.partial(get_concept_similarity,
-                                                f_aggregate=masked_mean, f_similarity=torch.cosine_similarity)
+    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=masked_mean,
+                                                f_similarity=torch.cosine_similarity, f_activation=torch.relu)
 
     # setup dataloader
     collate_function = functools.partial(collate_fn, tokenizer=tokenizer, vocab=vocab)
