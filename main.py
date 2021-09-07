@@ -19,7 +19,7 @@ from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create
     get_phrases_representation, get_phrases_embedding, get_concept_similarity
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
 from weakvtg.train import train, load_model, test_example, test, classes_frequency
-from weakvtg.vocabulary import load_vocab
+from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list
 
 
 def make_phrases_recurrent(rnn_type):
@@ -158,11 +158,12 @@ if __name__ == "__main__":
 
     tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(get_nlp()))
 
-    vocab = load_vocab(vocab_filepath)
-    classes_vocab = load_classes(classes_vocab_filepath)
+    vocab = load_vocab_from_json(vocab_filepath)
+    classes_vocab = load_vocab_from_list(load_classes(classes_vocab_filepath))
 
     phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=text_embedding_size, freeze=True)
-    classes_embedding_net = create_phrases_embedding_network(vocab, embedding_size=text_embedding_size, freeze=True)
+    classes_embedding_net = create_phrases_embedding_network(classes_vocab, embedding_size=text_embedding_size,
+                                                             freeze=True)
 
     phrases_recurrent_layer = make_phrases_recurrent(rnn_type=text_recurrent_network_type)
     phrases_recurrent_net = phrases_recurrent_layer(text_embedding_size, text_semantic_size,
