@@ -92,15 +92,8 @@ class WeakVtgModel(Model):
         phrases_x_negative = phrases_x_negative.unsqueeze(-2).repeat(1, 1, n_boxes, 1)
 
         # compute positive/negative logits and mask
-        positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
-        positive_logits = torch.masked_fill(positive_logits, get_synthetic_mask(phrases_mask) == 0, value=-1)
-        positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=0)
-
-        negative_logits = predict_logits(img_x_negative, phrases_x_negative, f_similarity=self.f_similarity)
-        negative_logits = torch.masked_fill(negative_logits, get_synthetic_mask(phrases_mask_negative) == 0, value=+1)
-        negative_logits = torch.masked_fill(negative_logits, _boxes_mask == 0, value=0)
-
         # scale logits given classes similarity
+
         def concept_similarity(phrase, phrase_mask):
             phrase_mask = phrase_mask.unsqueeze(-1)
             box_class_embedding = _get_classes_embedding(box_class)
@@ -110,8 +103,15 @@ class WeakVtgModel(Model):
         positive_concept_similarity = concept_similarity(phrases, phrases_mask)
         negative_concept_similarity = concept_similarity(phrases_negative, phrases_mask_negative)
 
+        positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
         positive_logits = positive_logits * positive_concept_similarity
+        positive_logits = torch.masked_fill(positive_logits, get_synthetic_mask(phrases_mask) == 0, value=-1)
+        positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=-1)
+
+        negative_logits = predict_logits(img_x_negative, phrases_x_negative, f_similarity=self.f_similarity)
         negative_logits = negative_logits * negative_concept_similarity
+        negative_logits = torch.masked_fill(negative_logits, get_synthetic_mask(phrases_mask_negative) == 0, value=+1)
+        negative_logits = torch.masked_fill(negative_logits, _boxes_mask == 0, value=+1)
 
         return (positive_logits, negative_logits), (positive_concept_similarity, negative_concept_similarity)
 
