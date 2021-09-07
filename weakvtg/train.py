@@ -243,11 +243,15 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
 
         n_ph = phrases.size()[-2]
 
+        if "grass left side" not in ph(sentence[0].detach().numpy()):
+            continue
+
         # --- forward model start
         optimizer.zero_grad()
         output = model(batch)
         loss, iou, accuracy, p_accuracy = criterion(batch, output)
         score_positive, score_negative = output[0]
+        concept_similarity_positive, *_ = output[1]
 
         boxes_pred = get_boxes_predicted(boxes, score_positive, phrases_synthetic)
 
@@ -258,6 +262,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
         classes_pred_topk = torch.gather(classes_pred.unsqueeze(-2).repeat(1, n_ph, 1), dim=-1, index=scores_topk_index)
         classes_gt = torch.gather(classes_pred.unsqueeze(-2).repeat(1, n_ph, 1), dim=-1,
                                   index=phrases_2_crd_index)
+        concept_similarity_topk = torch.gather(concept_similarity_positive, dim=-1, index=scores_topk_index)
         # --- forward model end
 
         height_ = height.detach().numpy()[0]
@@ -284,11 +289,9 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
         boxes_pred_classes_str_ = [get_class(classes, cls) for phrase in classes_pred_topk_ for cls in phrase]
         classes_gt_ = classes_gt[0].detach().numpy()
         classes_gt_str_ = [get_class(classes, cls) for phrase in classes_gt_ for cls in phrase]
+        concept_similarity_topk_ = concept_similarity_topk[0].detach().numpy()
 
         img_ = iox.load_image(os.path.join(dataset.image_filepath, f"{idx_}.jpg"))
-
-        # if "left of pe" not in sentence_str_:
-        #     continue
 
         print(f"({i}) Example: pos={idx_}, neg={idx_negative_}")
         print(f"({i}) Image: w={width_}, h={height_}")
@@ -311,6 +314,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
             print(f"({i}) ({j}) Best pred classes: {boxes_pred_classes_str_[j]}")
             print(f"({i}) ({j}) Boxes GT: {boxes_gt_[j]}")
             print(f"({i}) ({j}) Boxes GT classes: {classes_gt_str_[j]}")
+            print(f"({i}) ({j}) Similarity between pred class and phrase: {concept_similarity_topk_[j]}")
 
         show_image(img_, f"{idx_} (#{i}): {sentence_str_}", sentence_str_, phrases_str_, boxes_pred_, boxes_gt_)
 

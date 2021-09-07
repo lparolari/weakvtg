@@ -107,10 +107,13 @@ class WeakVtgModel(Model):
             phrase_embedding = _get_phrases_embedding(phrase)
             return _get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask)
 
-        positive_logits = positive_logits * concept_similarity(phrases, phrases_mask)
-        negative_logits = negative_logits * concept_similarity(phrases_negative, phrases_mask_negative)
+        positive_concept_similarity = concept_similarity(phrases, phrases_mask)
+        negative_concept_similarity = concept_similarity(phrases_negative, phrases_mask_negative)
 
-        return (positive_logits, negative_logits),
+        positive_logits = positive_logits * positive_concept_similarity
+        negative_logits = negative_logits * negative_concept_similarity
+
+        return (positive_logits, negative_logits), (positive_concept_similarity, negative_concept_similarity)
 
 
 def predict_logits(img_x, phrases_x, f_similarity):
