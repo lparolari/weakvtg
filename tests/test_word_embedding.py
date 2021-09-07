@@ -24,12 +24,26 @@ def test_word_embedding_similarity(glove_embeddings):
         w1 = glove_embeddings.vectors[w1_index]
         w2 = glove_embeddings.vectors[w2_index]
 
-        return torch.nn.functional.cosine_similarity(w1, w2, dim=-1)
+        return torch.cosine_similarity(w1, w2, dim=-1)
 
     assert round(_get_similarity("person", "woman").item(), 4) == pytest.approx(0.5618)
     assert round(_get_similarity("person", "man").item(), 4) == pytest.approx(0.5557)
     assert round(_get_similarity("man", "woman").item(), 4) == pytest.approx(0.7402)
     assert round(_get_similarity("person", "eggs").item(), 4) == pytest.approx(0.215)
+
+
+def test_word_embedding_mean_similarity(glove_embeddings):
+    def i(word): return glove_embeddings.stoi[word]
+    def w(word): return glove_embeddings.vectors[i(word)].unsqueeze(-2)
+    def ph(phrase): return torch.cat([w(word) for word in phrase.split(" ")], dim=-2)
+
+    phrase = torch.mean(ph("grass left side"), dim=-2)
+    cls = glove_embeddings.vectors[i("grass")]
+
+    similarity = torch.cosine_similarity(phrase, cls, dim=-1)
+    similarity = torch.relu(similarity)
+
+    assert similarity.item() == pytest.approx(0.7312, rel=1e-4)
 
 
 @pytest.fixture
