@@ -255,7 +255,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
 
         boxes_pred = get_boxes_predicted(boxes, score_positive, phrases_synthetic)
 
-        scores_topk, scores_topk_index = torch.topk(score_positive, k=3)
+        scores_topk, scores_topk_index = torch.topk(score_positive, k=1)
 
         boxes_pred_topk = get_boxes_predicted_topk(boxes, scores_topk_index, n_ph=n_ph)
 

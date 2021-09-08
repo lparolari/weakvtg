@@ -52,7 +52,7 @@ class WeakVtgModel(Model):
     def forward(self, batch):
         pred_n_boxes = batch["pred_n_boxes"]                    # [b]
         boxes = batch["pred_boxes"]                             # [b, n_boxes, 4]
-        boxes_mask = batch["pred_boxes_mask"]                   # [b, n_boxes, 1]
+        boxes_mask = batch["pred_boxes_mask"]                   # [b, n_boxes]
         boxes_features = batch["pred_boxes_features"]           # [b, n_boxes, 2048]
         boxes_class_prob = batch["pred_cls_prob"]               # [b, n_boxes, n_class]
         phrases = batch["phrases"]                              # [b, n_ph+, n_words+]
@@ -94,14 +94,15 @@ class WeakVtgModel(Model):
         # compute positive/negative logits and mask
         # scale logits given classes similarity
 
-        def concept_similarity(phrase, phrase_mask):
+        def concept_similarity(phrase, phrase_mask, boxes_mask):
             phrase_mask = phrase_mask.unsqueeze(-1)
+            boxes_mask = boxes_mask.unsqueeze(-1)
             box_class_embedding = _get_classes_embedding(box_class)
             phrase_embedding = _get_phrases_embedding(phrase)
-            return _get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask)
+            return _get_concept_similarity((box_class_embedding, boxes_mask), (phrase_embedding, phrase_mask))
 
-        positive_concept_similarity = concept_similarity(phrases, phrases_mask)
-        negative_concept_similarity = concept_similarity(phrases_negative, phrases_mask_negative)
+        positive_concept_similarity = concept_similarity(phrases, phrases_mask, boxes_mask)
+        negative_concept_similarity = concept_similarity(phrases_negative, phrases_mask_negative, boxes_mask)
 
         positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
         positive_logits = positive_logits * positive_concept_similarity
@@ -224,36 +225,106 @@ def get_box_class(probability):
     return torch.argmax(probability, dim=-1)
 
 
-def get_concept_similarity(box_class_embedding, phrase_embedding, phrase_mask, f_aggregate, f_similarity, f_activation):
+def get_concept_similarity(box_class_embedding_t, phrase_embedding_t, f_aggregate, f_similarity, f_activation):
     """
     Return the similarity between bounding box's class embedding (i.e., textual representation) and phrase.
 
     Please note that we mask `phrase_embedding` with `phrase_mask` in order to inhibit contribution from masked words
     computed by `f_aggregate`. However, the tensor should be already masked.
 
-    :param box_class_embedding: A [*, d1, d4] tensor
-    :param phrase_embedding: A [*, d2, d3, d4] tensor
-    :param phrase_mask: A [*, d2, d3, 1] tensor
+    :param box_class_embedding_t: A ([*, d1, d4], [*, d1, 1]) tuple of tensors
+    :param phrase_embedding_t: A ([*, d2, d3, d4], [*, d2, d3, 1]) tuple of tensors
     :param f_aggregate: A function that computes aggregate representation of a phrase
     :param f_similarity: A similarity function
     :param f_activation: An activation function, applied on final similarity score
     :return: A [*, d1, d2] tensor
     """
-    n_box = box_class_embedding.size()[-2]
-    n_ph = phrase_embedding.size()[-3]
+    box_class_embedding, box_class_embedding_mask = box_class_embedding_t
+    phrase_embedding, phrase_embedding_mask = phrase_embedding_t
 
-    box_class_embedding = box_class_embedding.unsqueeze(-3).repeat(1, n_ph, 1, 1)
+    n_box = box_class_embedding.size()[-2]
 
     # inhibit contributions of padded words in `f_aggregate`
-    phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_mask == 0, value=0)
+    # phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_embedding_mask == 0, value=0)  # TODO serve per masked mean! Dovrebbe essere riaggiunto???
 
-    phrase_embedding = f_aggregate(phrase_embedding, mask=phrase_mask, dim=-2)
-    phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_mask.sum(dim=-2) == 0, value=0)
+    phrase_embedding = f_aggregate(phrase_embedding_t, box_class_embedding_t, dim=-2, f_similarity=f_similarity)
+
     phrase_embedding = phrase_embedding.unsqueeze(-2).repeat(1, 1, n_box, 1)
 
     similarity = f_similarity(box_class_embedding, phrase_embedding, dim=-1)
 
+    phrase_embedding_synthetic_mask = phrase_embedding_mask.squeeze(-1).sum(dim=-1, keepdims=True)
+    box_class_embedding_mask = box_class_embedding_mask.squeeze(-1).unsqueeze(-3)
+
+    similarity = torch.masked_fill(similarity, mask=phrase_embedding_synthetic_mask == 0, value=-1)
+    similarity = torch.masked_fill(similarity, mask=box_class_embedding_mask == 0, value=-1)
+
     return f_activation(similarity)
+
+
+def aggregate_words_in_phrase(phrase_embedding_t, box_class_embedding_t, *_args, f_similarity, **_kwargs):
+    box_class_embedding, box_class_embedding_mask = box_class_embedding_t
+    phrase_embedding, phrase_embedding_mask = phrase_embedding_t
+
+    n_box = box_class_embedding.size()[-2]
+    n_ph = phrase_embedding.size()[-3]
+    n_word = phrase_embedding.size()[-2]
+    n_feat = phrase_embedding.size()[-1]
+
+    def expand_phrase_embedding(phrase_embedding):
+        phrase_embedding = phrase_embedding.unsqueeze(-2)
+
+        dims = [1] * phrase_embedding.dim()
+        dims[-2] = n_box
+
+        return phrase_embedding.repeat(*dims)
+
+    def expand_box_class_embedding(box_class_embedding):
+        box_class_embedding = box_class_embedding.unsqueeze(-3).unsqueeze(-3)
+
+        dims = [1] * box_class_embedding.dim()
+        dims[-4] = n_ph
+        dims[-3] = n_word
+
+        return box_class_embedding.repeat(*dims)
+
+    def expand_index(index):
+        index = index.unsqueeze(-1).unsqueeze(-1)
+
+        dims = [1] * index.dim()
+        dims[-1] = n_feat
+
+        return index.repeat(*dims)
+
+    # the following two tensor will have size [*, d2, d3, d1, d4], which in a real word scenario may translate
+    # to [*, n_ph, n_word, n_box, n_feat]
+    phrase_embedding = expand_phrase_embedding(phrase_embedding)
+    box_class_embedding = expand_box_class_embedding(box_class_embedding)
+
+    phrase_embedding_mask = expand_phrase_embedding(phrase_embedding_mask).squeeze(-1)
+    phrase_embedding_synthetic_mask = phrase_embedding_mask.sum(dim=-2, keepdims=True)
+    box_class_embedding_mask = expand_box_class_embedding(box_class_embedding_mask).squeeze(-1)
+
+    similarity = f_similarity(phrase_embedding, box_class_embedding, dim=-1)  # [*, d2, d3, d1]
+
+    # we need to apply some masking for padded values such us word, phrase and box
+    similarity = torch.masked_fill(similarity, mask=phrase_embedding_mask == 0, value=-1)  # word
+    similarity = torch.masked_fill(similarity, mask=phrase_embedding_synthetic_mask == 0, value=-1)  # phrase
+    similarity = torch.masked_fill(similarity, mask=box_class_embedding_mask == 0, value=-1)  # box
+
+    # then, for each word, keep the box with maximum similarity
+    similarity, _ = torch.max(similarity, dim=-1)  # [*, d2, d3]
+
+    # and, for each phrase, retrieve the word index with maximum similarity
+    index = torch.argmax(similarity, dim=-1)  # [*, d2]
+    index = expand_index(index)  # [*, d2, 1, d4]
+
+    best_word_embedding = torch.gather(phrase_embedding_t[0], dim=-2, index=index)
+
+    # remove word dimension
+    best_word_embedding = best_word_embedding.squeeze(-2)
+
+    return best_word_embedding
 
 
 def create_phrases_embedding_network(vocab, embedding_size, freeze=False):

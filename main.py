@@ -16,7 +16,7 @@ from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss
 from weakvtg.math import get_argmax, get_max, masked_mean
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
-    get_phrases_representation, get_phrases_embedding, get_concept_similarity
+    get_phrases_representation, get_phrases_embedding, get_concept_similarity, aggregate_words_in_phrase
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
 from weakvtg.train import train, load_model, test_example, test, classes_frequency
 from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list
@@ -180,7 +180,7 @@ if __name__ == "__main__":
                                                     recurrent_network=phrases_recurrent_net,
                                                     out_features=text_semantic_size,
                                                     device=device)
-    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=masked_mean,
+    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=aggregate_words_in_phrase,
                                                 f_similarity=torch.cosine_similarity, f_activation=torch.relu)
 
     # setup dataloader
