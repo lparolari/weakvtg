@@ -243,18 +243,20 @@ def get_concept_similarity(box_class_embedding_t, phrase_embedding_t, f_aggregat
     phrase_embedding, phrase_embedding_mask = phrase_embedding_t
 
     n_box = box_class_embedding.size()[-2]
+    n_ph = phrase_embedding.size()[-3]
 
     # inhibit contributions of padded words in `f_aggregate`
     # phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_embedding_mask == 0, value=0)  # TODO serve per masked mean! Dovrebbe essere riaggiunto???
 
     phrase_embedding = f_aggregate(phrase_embedding_t, box_class_embedding_t, dim=-2, f_similarity=f_similarity)
 
+    box_class_embedding = box_class_embedding.unsqueeze(-3).repeat(1, n_ph, 1, 1)
     phrase_embedding = phrase_embedding.unsqueeze(-2).repeat(1, 1, n_box, 1)
 
     similarity = f_similarity(box_class_embedding, phrase_embedding, dim=-1)
 
     phrase_embedding_synthetic_mask = phrase_embedding_mask.squeeze(-1).sum(dim=-1, keepdims=True)
-    box_class_embedding_mask = box_class_embedding_mask.squeeze(-1).unsqueeze(-3)
+    box_class_embedding_mask = box_class_embedding_mask.squeeze(-1).unsqueeze(-2)
 
     similarity = torch.masked_fill(similarity, mask=phrase_embedding_synthetic_mask == 0, value=-1)
     similarity = torch.masked_fill(similarity, mask=box_class_embedding_mask == 0, value=-1)
