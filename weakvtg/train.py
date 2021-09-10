@@ -219,7 +219,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
 
             plt.text(x, y - 2, query, bbox=text_props, fontsize=5, color="white")
 
-            rect = patches.Rectangle(xy, width, height, linewidth=1, edgecolor=color, facecolor="none")
+            rect = patches.Rectangle(xy, width, height, linewidth=1, edgecolor=[*color, .5], facecolor=[*color, .2])
             ax.add_patch(rect)
 
         plt.show()
