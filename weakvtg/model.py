@@ -277,9 +277,6 @@ def aggregate_words_by_max(phrase_embedding_t, box_class_embedding_t, *_args, f_
     return get_maximum_similarity_word(phrase_embedding_t, maximum_similarity_box_t)
 
 
-aggregate_words_in_phrase = aggregate_words_by_max  # TODO: remove the alias
-
-
 def get_maximum_similarity_box(phrase_embedding_t, box_class_embedding_t, f_similarity):
     """
     Return the similarity (and the index wrt dimensions `[*, d2, d3]`) of the most similar word wrt bounding box's

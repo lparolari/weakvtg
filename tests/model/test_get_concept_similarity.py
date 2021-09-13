@@ -2,7 +2,7 @@ import functools
 
 import torch
 
-from weakvtg.model import get_concept_similarity, aggregate_words_in_phrase
+from weakvtg.model import get_concept_similarity, aggregate_words_by_max
 
 
 """
@@ -47,7 +47,7 @@ sim_f_a = -0.
 sim_f_b = -0.7071
 sim_f_c = -1.
 
-f_aggregate = aggregate_words_in_phrase
+f_aggregate = aggregate_words_by_max
 
 _get_concept_similarity = functools.partial(
     get_concept_similarity,
