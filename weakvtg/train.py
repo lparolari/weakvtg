@@ -366,6 +366,58 @@ def classes_frequency(loader, model, optimizer, classes):
         print(f"{get_class(classes, j)},{c_pred},{c_gt}")
 
 
+def concepts_frequency(loader, vocab, get_classes_embedding, get_phrases_embedding, f_similarity):
+    """
+    Print in a CSV form a concept (i.e., one of the 1600 classes) and its frequency in term of how many times a word
+    from a phrase with maximum similarity wrt the bounding boxes is selected.
+    """
+    from weakvtg.model import get_box_class, get_maximum_similarity_box
+
+    frequencies = [0] * len(vocab)
+
+    for i, batch in enumerate(loader):
+        boxes_mask = batch["pred_boxes_mask"]
+        phrases = batch["phrases"]
+        phrases_mask = batch["phrases_mask"]
+        boxes_class_prob = batch["pred_cls_prob"]
+
+        box_class = get_box_class(boxes_class_prob)  # [b, n_boxes]
+
+        phrase_mask = phrases_mask.unsqueeze(-1)
+        boxes_mask = boxes_mask.unsqueeze(-1)
+        box_class_embedding = get_classes_embedding(box_class)
+        phrase_embedding = get_phrases_embedding(phrases)
+
+        box_class_embedding_t = (box_class_embedding, boxes_mask)
+        phrase_embedding_t = (phrase_embedding, phrase_mask)
+
+        maximum_similarity_box, _ = get_maximum_similarity_box(phrase_embedding_t, box_class_embedding_t, f_similarity)
+
+        maximum_similarity_word_index = torch.argmax(maximum_similarity_box, dim=-1).unsqueeze(-1)
+
+        chosen_words = torch.gather(phrases, dim=-1, index=maximum_similarity_word_index)
+        chosen_words = chosen_words.squeeze(-1)
+
+        chosen_words_ = chosen_words[0].detach().numpy()
+
+        for word in chosen_words_:
+            frequencies[word] += 1
+
+    for i in range(len(frequencies)):
+        freq = frequencies[i]
+
+        if freq == 0:
+            continue
+
+        word = vocab.vocab.itos_[i]
+
+        if word == "<unk>":
+            print(f"__unk-{i}__,{freq}")
+            continue
+
+        print(f"{word},{freq}")
+
+
 def save_model(model, epoch, optimizer=None, scheduler=None, folder=None, suffix=None):
     if folder is None:
         folder = tempfile.gettempdir()

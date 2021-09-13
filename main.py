@@ -18,7 +18,7 @@ from weakvtg.math import get_argmax, get_max, masked_mean
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
     get_phrases_representation, get_phrases_embedding, get_concept_similarity, aggregate_words_by_max
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
-from weakvtg.train import train, load_model, test_example, test, classes_frequency
+from weakvtg.train import train, load_model, test_example, test, classes_frequency, concepts_frequency
 from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list
 
 
@@ -60,7 +60,8 @@ def parse_args():
     parser.add_argument("--suffix", type=str, default=None)
     parser.add_argument("--restore", type=str, default=None)
 
-    parser.add_argument("--workflow", type=str, choices=["train", "valid", "test", "test-example", "classes-frequency"],
+    parser.add_argument("--workflow", type=str, choices=["train", "valid", "test", "test-example", "classes-frequency",
+                                                         "concepts-frequency"],
                         default="train")
 
     parser.add_argument("--log-level", dest="log_level", type=int, default=logging.DEBUG, help="Log verbosity")
@@ -240,6 +241,13 @@ if __name__ == "__main__":
         classes = get_classes("data/objects_vocab.txt")
         classes_frequency(loader, model, optimizer, classes)
 
+    def do_concepts_frequency():
+        dataset = test_dataset
+        loader = torchdata.DataLoader(dataset, batch_size=1, collate_fn=collate_function, num_workers=num_workers,
+                                      prefetch_factor=prefetch_factor)
+        concepts_frequency(loader, vocab, _get_classes_embedding, _get_phrases_embedding,
+                           f_similarity=torch.cosine_similarity)
+
     if args.workflow == "train":
         do_train()
     if args.workflow == "test":
@@ -248,5 +256,7 @@ if __name__ == "__main__":
         do_test_example()
     if args.workflow == "classes-frequency":
         do_classes_frequency()
+    if args.workflow == "concepts-frequency":
+        do_concepts_frequency()
 
     print("Goodbye, World!")
