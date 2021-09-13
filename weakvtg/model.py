@@ -264,14 +264,38 @@ def get_concept_similarity(box_class_embedding_t, phrase_embedding_t, f_aggregat
     return f_activation(similarity)
 
 
-def aggregate_words_in_phrase(phrase_embedding_t, box_class_embedding_t, *_args, f_similarity, **_kwargs):
+def aggregate_words_by_max(phrase_embedding_t, box_class_embedding_t, *_args, f_similarity, **_kwargs):
+    """
+    Return the similarity of the word which is the most similar wrt bounding box's class for each phrase.
+
+    :param box_class_embedding_t: A ([*, d1, d4], [*, d1, 1]) tuple of tensors
+    :param phrase_embedding_t: A ([*, d2, d3, d4], [*, d2, d3, 1]) tuple of tensors
+    :param f_similarity: A similarity function
+    :return: A [*, d2, d1] tensor
+    """
+    maximum_similarity_box_t = get_maximum_similarity_box(phrase_embedding_t, box_class_embedding_t, f_similarity)
+    return get_maximum_similarity_word(phrase_embedding_t, maximum_similarity_box_t)
+
+
+aggregate_words_in_phrase = aggregate_words_by_max  # TODO: remove the alias
+
+
+def get_maximum_similarity_box(phrase_embedding_t, box_class_embedding_t, f_similarity):
+    """
+    Return the similarity (and the index wrt dimensions `[*, d2, d3]`) of the most similar word wrt bounding box's
+    class.
+
+    :param box_class_embedding_t: A ([*, d1, d4], [*, d1, 1]) tuple of tensors
+    :param phrase_embedding_t: A ([*, d2, d3, d4], [*, d2, d3, 1]) tuple of tensors
+    :param f_similarity: A similarity function
+    :return: A (Tensor, LongTensor) tuple with dimensions ([*, d2, d3], [*, d2, d3])
+    """
     box_class_embedding, box_class_embedding_mask = box_class_embedding_t
     phrase_embedding, phrase_embedding_mask = phrase_embedding_t
 
     n_box = box_class_embedding.size()[-2]
     n_ph = phrase_embedding.size()[-3]
     n_word = phrase_embedding.size()[-2]
-    n_feat = phrase_embedding.size()[-1]
 
     def expand_phrase_embedding(phrase_embedding):
         phrase_embedding = phrase_embedding.unsqueeze(-2)
@@ -290,14 +314,6 @@ def aggregate_words_in_phrase(phrase_embedding_t, box_class_embedding_t, *_args,
 
         return box_class_embedding.repeat(*dims)
 
-    def expand_index(index):
-        index = index.unsqueeze(-1).unsqueeze(-1)
-
-        dims = [1] * index.dim()
-        dims[-1] = n_feat
-
-        return index.repeat(*dims)
-
     # the following two tensor will have size [*, d2, d3, d1, d4], which in a real word scenario may translate
     # to [*, n_ph, n_word, n_box, n_feat]
     phrase_embedding = expand_phrase_embedding(phrase_embedding)
@@ -315,10 +331,35 @@ def aggregate_words_in_phrase(phrase_embedding_t, box_class_embedding_t, *_args,
     similarity = torch.masked_fill(similarity, mask=box_class_embedding_mask == 0, value=-1)  # box
 
     # then, for each word, keep the box with maximum similarity
-    similarity, _ = torch.max(similarity, dim=-1)  # [*, d2, d3]
+    return torch.max(similarity, dim=-1)  # [*, d2, d3]
+
+
+def get_maximum_similarity_word(phrase_embedding_t, maximum_similarity_box_t):
+    """
+    Return the embedding of the word with maximum similarity wrt given box similarity.
+
+    The box similarity is a tensor where each entry represents the maximum similarity of a word wrt bounding box's
+    class for each phrase, for each word. The second component of the tuple is the index of the above best box.
+
+    :param phrase_embedding_t: A ([*, d2, d3, d4], [*, d2, d3, 1]) tuple of tensors
+    :param maximum_similarity_box_t: A ([*, d2, d3], [*, d2, d3]) tuple of tensors
+    :return: A [*, d2, d4] tensor
+    """
+    phrase_embedding, phrase_embedding_mask = phrase_embedding_t
+    maximum_similarity_box, maximum_similarity_box_index = maximum_similarity_box_t
+
+    n_feat = phrase_embedding.size()[-1]
+
+    def expand_index(index):
+        index = index.unsqueeze(-1).unsqueeze(-1)
+
+        dims = [1] * index.dim()
+        dims[-1] = n_feat
+
+        return index.repeat(*dims)
 
     # and, for each phrase, retrieve the word index with maximum similarity
-    index = torch.argmax(similarity, dim=-1)  # [*, d2]
+    index = torch.argmax(maximum_similarity_box, dim=-1)  # [*, d2]
     index = expand_index(index)  # [*, d2, 1, d4]
 
     best_word_embedding = torch.gather(phrase_embedding_t[0], dim=-2, index=index)
