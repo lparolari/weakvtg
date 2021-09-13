@@ -99,7 +99,7 @@ class WeakVtgModel(Model):
             boxes_mask = boxes_mask.unsqueeze(-1)
             box_class_embedding = _get_classes_embedding(box_class)
             phrase_embedding = _get_phrases_embedding(phrase)
-            return _get_concept_similarity((box_class_embedding, boxes_mask), (phrase_embedding, phrase_mask))
+            return _get_concept_similarity((phrase_embedding, phrase_mask), (box_class_embedding, boxes_mask))
 
         positive_concept_similarity = concept_similarity(phrases, phrases_mask, boxes_mask)
         negative_concept_similarity = concept_similarity(phrases_negative, phrases_mask_negative, boxes_mask)
@@ -225,15 +225,15 @@ def get_box_class(probability):
     return torch.argmax(probability, dim=-1)
 
 
-def get_concept_similarity(box_class_embedding_t, phrase_embedding_t, f_aggregate, f_similarity, f_activation):
+def get_concept_similarity(phrase_embedding_t, box_class_embedding_t, f_aggregate, f_similarity, f_activation):
     """
     Return the similarity between bounding box's class embedding (i.e., textual representation) and phrase.
 
     Please note that we mask `phrase_embedding` with `phrase_mask` in order to inhibit contribution from masked words
     computed by `f_aggregate`. However, the tensor should be already masked.
 
-    :param box_class_embedding_t: A ([*, d1, d4], [*, d1, 1]) tuple of tensors
     :param phrase_embedding_t: A ([*, d2, d3, d4], [*, d2, d3, 1]) tuple of tensors
+    :param box_class_embedding_t: A ([*, d1, d4], [*, d1, 1]) tuple of tensors
     :param f_aggregate: A function that computes aggregate representation of a phrase
     :param f_similarity: A similarity function
     :param f_activation: An activation function, applied on final similarity score

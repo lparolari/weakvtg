@@ -74,7 +74,7 @@ def test_get_concept_similarity():
     phrase_mask = torch.ones(1, 2, 4, 1)
 
     assert is_close(
-        _get_concept_similarity((box_class_embedding, box_class_mask), (phrase_embedding, phrase_mask)),
+        _get_concept_similarity((phrase_embedding, phrase_mask), (box_class_embedding, box_class_mask)),
         concept_similarity
     )
 
@@ -89,7 +89,7 @@ def test_get_concept_similarity_given_padded_words():
     phrase_mask = torch.tensor([[[0, 1, 1, 0], [0, 0, 0, 0]]]).unsqueeze(-1)
 
     assert is_close(
-        _get_concept_similarity((box_class_embedding, box_class_mask), (phrase_embedding, phrase_mask)),
+        _get_concept_similarity((phrase_embedding, phrase_mask), (box_class_embedding, box_class_mask)),
         concept_similarity
     )
 
@@ -104,7 +104,7 @@ def test_get_concept_similarity_given_padded_box():
     phrase_mask = torch.ones(1, 2, 4, 1)
 
     assert is_close(
-        _get_concept_similarity((box_class_embedding, box_class_mask), (phrase_embedding, phrase_mask)),
+        _get_concept_similarity((phrase_embedding, phrase_mask), (box_class_embedding, box_class_mask)),
         concept_similarity
     )
 
@@ -119,7 +119,7 @@ def test_get_concept_similarity_given_relu():
     phrase_mask = torch.ones(1, 2, 4, 1)
 
     assert is_close(
-        _get_concept_similarity_relu((box_class_embedding, box_class_mask), (phrase_embedding, phrase_mask)),
+        _get_concept_similarity_relu((phrase_embedding, phrase_mask), (box_class_embedding, box_class_mask)),
         concept_similarity
     )
 
