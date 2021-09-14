@@ -245,7 +245,7 @@ if __name__ == "__main__":
         dataset = test_dataset
         loader = torchdata.DataLoader(dataset, batch_size=1, collate_fn=collate_function, num_workers=num_workers,
                                       prefetch_factor=prefetch_factor)
-        concepts_frequency(loader, vocab, _get_classes_embedding, _get_phrases_embedding,
+        concepts_frequency(loader, vocab, classes_vocab, _get_classes_embedding, _get_phrases_embedding,
                            f_similarity=torch.cosine_similarity)
 
     if args.workflow == "train":

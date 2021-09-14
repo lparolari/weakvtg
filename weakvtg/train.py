@@ -366,22 +366,36 @@ def classes_frequency(loader, model, optimizer, classes):
         print(f"{get_class(classes, j)},{c_pred},{c_gt}")
 
 
-def concepts_frequency(loader, vocab, get_classes_embedding, get_phrases_embedding, f_similarity):
+def concepts_frequency(loader, vocab, class_vocab, get_classes_embedding, get_phrases_embedding, f_similarity):
     """
     Print in a CSV form a concept (i.e., one of the 1600 classes) and its frequency in term of how many times a word
     from a phrase with maximum similarity wrt the bounding boxes is selected.
     """
     from weakvtg.model import get_box_class, get_maximum_similarity_box
+    from weakvtg.oov import oov_words
 
-    frequencies = [0] * len(vocab)
+    word_frequencies = np.zeros(len(vocab)).astype(int)
+    class_frequency_by_words = np.zeros((len(vocab), len(class_vocab))).astype(int)
+    invalid_embeddings = np.zeros(len(vocab)).astype(int)
+
+    n_example = len(loader)
+
+    def progress(i, n):
+        print(f"{i} of {n}", end="\r")
 
     for i, batch in enumerate(loader):
+        progress(i + 1, n_example)
+
         boxes_mask = batch["pred_boxes_mask"]
         phrases = batch["phrases"]
         phrases_mask = batch["phrases_mask"]
         boxes_class_prob = batch["pred_cls_prob"]
 
         box_class = get_box_class(boxes_class_prob)  # [b, n_boxes]
+
+        n_box = box_class.size()[-1]
+        n_ph = phrases.size()[-2]
+        n_word = phrases.size()[-1]
 
         phrase_mask = phrases_mask.unsqueeze(-1)
         boxes_mask = boxes_mask.unsqueeze(-1)
@@ -391,31 +405,46 @@ def concepts_frequency(loader, vocab, get_classes_embedding, get_phrases_embeddi
         box_class_embedding_t = (box_class_embedding, boxes_mask)
         phrase_embedding_t = (phrase_embedding, phrase_mask)
 
-        maximum_similarity_box, _ = get_maximum_similarity_box(phrase_embedding_t, box_class_embedding_t, f_similarity)
+        maximum_similarity_box, maximum_similarity_box_index = get_maximum_similarity_box(phrase_embedding_t, box_class_embedding_t, f_similarity)
+
+        maximum_similarity_box_index = maximum_similarity_box_index.unsqueeze(-1)
+        box_class_2 = box_class.unsqueeze(-2).unsqueeze(-2).repeat(1, n_ph, n_word, 1)
+        chosen_class = torch.gather(box_class_2, dim=-1, index=maximum_similarity_box_index)
 
         maximum_similarity_word_index = torch.argmax(maximum_similarity_box, dim=-1).unsqueeze(-1)
+
+        chosen_class = torch.gather(chosen_class, dim=-2, index=maximum_similarity_word_index.unsqueeze(-2))
+        chosen_class = chosen_class.squeeze(-1).squeeze(-1)
 
         chosen_words = torch.gather(phrases, dim=-1, index=maximum_similarity_word_index)
         chosen_words = chosen_words.squeeze(-1)
 
+        chosen_class_ = chosen_class[0].detach().numpy()
         chosen_words_ = chosen_words[0].detach().numpy()
 
-        for word in chosen_words_:
-            frequencies[word] += 1
+        for j in range(len(chosen_words_)):
+            word = chosen_words_[j]
+            cls = chosen_class_[j]
 
-    for i in range(len(frequencies)):
-        freq = frequencies[i]
+            # print(vocab.vocab.itos_[word], class_vocab.vocab.itos_[cls])
+            # input()
 
-        if freq == 0:
-            continue
+            word_frequencies[word] += 1
+            class_frequency_by_words[word][cls] += 1
+            invalid_embeddings[word] += 1 if class_vocab.vocab.itos_[cls] in oov_words else 0
 
-        word = vocab.vocab.itos_[i]
+    print()
+    print("PART 1")
+    print("class,freq,invalid")
+    for i in range(len(vocab)):
+        print(f"{vocab.vocab.itos_[i]},{word_frequencies[i]},{invalid_embeddings[i]}")
 
-        if word == "<unk>":
-            print(f"__unk-{i}__,{freq}")
-            continue
+    print()
+    print("PART 2")
 
-        print(f"{word},{freq}")
+    print("class," + ",".join([class_vocab.vocab.itos_[i] for i in range(len(class_vocab))]))
+    for i in range(len(vocab)):
+        print(f"{vocab.vocab.itos_[i]}," + ",".join([str(class_frequency_by_words[i][j]) for j in range(len(class_vocab))]))
 
 
 def save_model(model, epoch, optimizer=None, scheduler=None, folder=None, suffix=None):
