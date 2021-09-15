@@ -91,7 +91,7 @@ def collate_fn(batch, tokenizer, vocab):
                get_max_length_phrases(phrases_2_crd))
 
         # please note that `padding_value=0` produces an invalid mask, however, this mask is not used
-        return get_padded_examples(phrases_2_crd, padding_value=0, dtype=torch.float, padding_dim=dim)
+        return get_padded_examples(phrases_2_crd, padding_value=0, dtype=float, padding_dim=dim)
 
     def _get_padded_phrases_2_crd_index(phrases_2_crd_index):
         dim = (get_number_examples(phrases_2_crd_index),
@@ -100,7 +100,7 @@ def collate_fn(batch, tokenizer, vocab):
 
         # please note that `padding_value=0` is meaningless, however, padding on index do not matter, the user
         # is responsible to mask results obtained with this index
-        return get_padded_examples(phrases_2_crd_index, padding_value=0, dtype=torch.long, padding_dim=dim)
+        return get_padded_examples(phrases_2_crd_index, padding_value=0, padding_dim=dim)
 
     def _get_padded_sentence(sentence):
         indexed_sentences = get_indexed_phrases_per_example([sentence], tokenizer=tokenizer, vocab=vocab)

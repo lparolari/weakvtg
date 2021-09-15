@@ -1,6 +1,7 @@
 import logging
 from typing import List, Callable, Tuple, Any
 
+import numpy as np
 import torch
 import torchtext
 
@@ -62,7 +63,7 @@ def get_indexed_phrases_per_example(examples: TextualExamples, tokenizer: Tokeni
 
 def get_padded_examples(examples: IndexedExamples, padding_dim: Tuple[int, int, int],
                         padding_value: int,
-                        dtype: torch.dtype = torch.long):
+                        dtype: type = np.long):
     """
     :param examples: A list of vocabulary-indexed phrases per example (i.e., triple nested lists)
     :param padding_dim: A tuple of three ints representing the padding dimension of the resulting tensor
@@ -70,17 +71,20 @@ def get_padded_examples(examples: IndexedExamples, padding_dim: Tuple[int, int, 
     :param dtype: Data type
     :return: A tensor with dim=padding_dim with padded values
     """
-    padded_tensor = torch.zeros(*padding_dim, dtype=dtype)
+    padded_tensor = np.zeros(padding_dim, dtype=dtype)
     padded_tensor += padding_value
 
     for ex, ex_data in enumerate(examples):
         for ph, ph_data in enumerate(ex_data):
-            for idx, idx_data in enumerate(ph_data):
-                if idx_data is not None:
-                    padded_tensor[ex, ph, idx] = idx_data
-                else:
-                    logging.error(f"Indexed word is none at [{ex}, {ph}, {idx}] within phrase {ph_data}")
-                    logging.debug(f"{ex_data}")
+            padded_tensor[ex, ph, :len(ph_data)] = ph_data
+            # for idx, idx_data in enumerate(ph_data):
+            #     if idx_data is not None:
+            #         padded_tensor[ex, ph, idx] = idx_data
+            #     else:
+            #         logging.error(f"Indexed word is none at [{ex}, {ph}, {idx}] within phrase {ph_data}")
+            #         logging.debug(f"{ex_data}")
+
+    padded_tensor = torch.tensor(padded_tensor)
 
     mask = padded_tensor != padding_value
 
