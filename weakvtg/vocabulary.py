@@ -1,7 +1,6 @@
 import collections
 import typing as t
 
-import torch
 from torchtext import vocab
 
 from weakvtg import iox
@@ -60,11 +59,25 @@ class Word2Vec(vocab.Vectors):
     """
 
     def cache(self, name, cache, url=None, max_vectors=None):
-        import gensim.downloader as api
+        import logging
+        import os
 
-        model = api.load(name)
+        import torch
 
-        self.itos = model.index_to_key
-        self.stoi = model.key_to_index
-        self.vectors = torch.tensor(model.vectors)
-        self.dim = model.vector_size
+        file_suffix = f"_{max_vectors}.pt" if max_vectors else ".pt"
+        path_pt = os.path.join(cache, os.path.basename(name)) + file_suffix
+
+        if not os.path.isfile(path_pt):
+            import gensim.downloader as api
+
+            model = api.load(name)
+
+            self.itos = model.index_to_key
+            self.stoi = model.key_to_index
+            self.vectors = torch.tensor(model.vectors)
+            self.dim = model.vector_size
+
+            torch.save((self.itos, self.stoi, self.vectors, self.dim), path_pt)
+        else:
+            logging.info('Loading vectors from {}'.format(path_pt))
+            self.itos, self.stoi, self.vectors, self.dim = torch.load(path_pt)
