@@ -12,6 +12,7 @@ __defaults = {
     "vocab_filepath": "data/referit_raw/vocab.json",
     "classes_vocab_filepath": "data/objects_vocab.txt",
     "learning_rate": 0.001,
+    "word_embedding": "glove",
     "text_embedding_size": 300,
     "text_semantic_size": 500,
     "text_semantic_num_layers": 1,

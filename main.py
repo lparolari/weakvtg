@@ -19,7 +19,7 @@ from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create
     get_phrases_representation, get_phrases_embedding, get_concept_similarity, aggregate_words_by_max
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
 from weakvtg.train import train, load_model, test_example, test, classes_frequency, concepts_frequency
-from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list
+from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list, get_word_embedding
 
 
 def make_phrases_recurrent(rnn_type):
@@ -46,6 +46,7 @@ def parse_args():
     parser.add_argument("--vocab-filepath", type=str, default=None)
     parser.add_argument("--classes-vocab-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
+    parser.add_argument("--word-embedding", type=str, default=None)
     parser.add_argument("--text-embedding-size", type=int, default=None)
     parser.add_argument("--text-semantic-size", type=int, default=None)
     parser.add_argument("--text-semantic-num-layers", type=int, default=None)
@@ -91,6 +92,7 @@ if __name__ == "__main__":
         "vocab_filepath": args.vocab_filepath,
         "classes_vocab_filepath": args.classes_vocab_filepath,
         "learning_rate": args.learning_rate,
+        "word_embedding": args.word_embedding,
         "text_embedding_size": args.text_embedding_size,
         "text_semantic_size": args.text_semantic_size,
         "text_semantic_num_layers": args.text_semantic_num_layers,
@@ -117,6 +119,7 @@ if __name__ == "__main__":
     vocab_filepath = config["vocab_filepath"]
     classes_vocab_filepath = config["classes_vocab_filepath"]
     learning_rate = config["learning_rate"]
+    word_embedding = config["word_embedding"]
     text_embedding_size = config["text_embedding_size"]
     text_semantic_size = config["text_semantic_size"]
     text_semantic_num_layers = config["text_semantic_num_layers"]
@@ -162,8 +165,10 @@ if __name__ == "__main__":
     vocab = load_vocab_from_json(vocab_filepath)
     classes_vocab = load_vocab_from_list(load_classes(classes_vocab_filepath))
 
-    phrases_embedding_net = create_phrases_embedding_network(vocab, embedding_size=text_embedding_size, freeze=True)
-    classes_embedding_net = create_phrases_embedding_network(classes_vocab, embedding_size=text_embedding_size,
+    word_embedding = get_word_embedding(word_embedding, text_embedding_size)
+
+    phrases_embedding_net = create_phrases_embedding_network(vocab, word_embedding, text_embedding_size, freeze=True)
+    classes_embedding_net = create_phrases_embedding_network(classes_vocab, word_embedding, text_embedding_size,
                                                              freeze=True)
 
     phrases_recurrent_layer = make_phrases_recurrent(rnn_type=text_recurrent_network_type)

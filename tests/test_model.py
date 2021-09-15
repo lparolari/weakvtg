@@ -8,7 +8,9 @@ import torch.nn.functional as F
 from weakvtg.mask import get_synthetic_mask
 from weakvtg.model import get_image_features, get_phrases_features, create_phrases_embedding_network, \
     get_phrases_representation, create_image_embedding_network
-from weakvtg.vocabulary import get_vocab
+from weakvtg.vocabulary import get_vocab, get_word_embedding
+
+pretrained_embeddings = get_word_embedding("glove")
 
 
 def test_get_image_features():
@@ -46,7 +48,7 @@ def test_get_phrases_features():
 def test_create_phrases_embedding_network():
     vocab = get_vocab(collections.Counter({"the": 3, "pen": 1, "is": 2, "on": 1, "table": 1, "dog": 1, "running": 1}))
 
-    text_embedding = create_phrases_embedding_network(vocab, embedding_size=300, freeze=True)
+    text_embedding = create_phrases_embedding_network(vocab, pretrained_embeddings, embedding_size=300, freeze=True)
 
     phrases = torch.Tensor([[1, 2, 3, 4, 1, 5], [1, 6, 3, 7, 0, 0]]).long()
     phrases_embedded = text_embedding(phrases)
@@ -61,7 +63,7 @@ def test_get_phrases_representation():
     phrases_mask = torch.Tensor([[[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 0, 0]]]).long()
     phrases_length = torch.sum(phrases_mask.int(), dim=-1)
 
-    text_embedding = create_phrases_embedding_network(vocab, embedding_size=300, freeze=True)
+    text_embedding = create_phrases_embedding_network(vocab, pretrained_embeddings, embedding_size=300, freeze=True)
     phrases_embedded = text_embedding(phrases)
 
     lstm = nn.LSTM(300, 50, num_layers=2, bidirectional=False, batch_first=False)

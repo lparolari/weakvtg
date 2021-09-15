@@ -367,26 +367,23 @@ def get_maximum_similarity_word(phrase_embedding_t, maximum_similarity_box_t):
     return best_word_embedding
 
 
-def create_phrases_embedding_network(vocab, embedding_size, freeze=False):
+def create_phrases_embedding_network(vocab, pretrained_embeddings, embedding_size, freeze=False):
     vocab_size = len(vocab)
     out_of_vocabulary = 0
 
     embedding_matrix_values = torch.zeros((vocab_size + 1, embedding_size), requires_grad=(not freeze))
 
-    import torchtext
-    glove_embeddings = torchtext.vocab.GloVe("840B", dim=300)
+    pretrained_words = pretrained_embeddings.stoi.keys()
 
-    glove_words = glove_embeddings.stoi.keys()
-
-    for idx in range(vocab_size):
-        word = vocab.get_itos()[idx]
-        if word in glove_words:
-            glove_idx = glove_embeddings.stoi[word]
-            embedding_matrix_values[idx, :] = glove_embeddings.vectors[glove_idx]
+    for word_idx in range(vocab_size):
+        word = vocab.get_itos()[word_idx]
+        if word in pretrained_words:
+            embedding_idx = pretrained_embeddings.stoi[word]
+            embedding_matrix_values[word_idx, :] = pretrained_embeddings.vectors[embedding_idx]
         else:
             out_of_vocabulary += 1
             # nn.init.uniform_(embedding_matrix_values[idx, :], -1, 1)
-            nn.init.normal_(embedding_matrix_values[idx, :])
+            nn.init.normal_(embedding_matrix_values[word_idx, :])
 
     if out_of_vocabulary != 0:
         logging.warning(f"Found {out_of_vocabulary} words out of vocabulary.")
