@@ -33,6 +33,16 @@ def make_phrases_recurrent(rnn_type):
         return nn.RNN
 
 
+def make_concept_similarity_f_aggregate(kind):
+    fs = {"max": aggregate_words_by_max, "mean": aggregate_words_by_mean}
+
+    if kind not in fs:
+        raise ValueError(f"Provided concept similarity aggregation strategy ({kind}) is not supported. Please use "
+                         f"one of {fs.keys()}")
+
+    return fs[kind]
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train, validate, test or plot some example with `weakvtg` model.")
 
@@ -55,6 +65,7 @@ def parse_args():
     parser.add_argument("--image-embedding-size", type=int, default=None)
     parser.add_argument("--image-semantic-size", type=int, default=None)
     parser.add_argument("--image-semantic-hidden-layers", type=int, default=None)
+    parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
     parser.add_argument("--n-box", type=int, default=None)
     parser.add_argument("--n-epochs", type=int, default=None)
     parser.add_argument("--device-name", type=str, default=None)
@@ -101,6 +112,7 @@ if __name__ == "__main__":
         "image_embedding_size": args.image_embedding_size,
         "image_semantic_size": args.image_semantic_size,
         "image_semantic_hidden_layers": args.image_semantic_hidden_layers,
+        "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
         "n_box": args.n_box,
         "n_epochs": args.n_epochs,
         "device_name": args.device_name,
@@ -128,6 +140,7 @@ if __name__ == "__main__":
     image_embedding_size = config["image_embedding_size"]
     image_semantic_size = config["image_semantic_size"]
     image_semantic_hidden_layers = config["image_semantic_hidden_layers"]
+    concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
     n_box = config["n_box"]
     n_epochs = config["n_epochs"]
     device_name = config["device_name"]
@@ -151,6 +164,8 @@ if __name__ == "__main__":
     # create core tools
     nlp = get_nlp()
     tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(nlp))
+
+    f_aggregate = make_concept_similarity_f_aggregate(concept_similarity_aggregation_strategy)
 
     vocab = load_vocab_from_json(vocab_filepath)
     classes_vocab = load_vocab_from_list(load_classes(classes_vocab_filepath))
@@ -176,7 +191,7 @@ if __name__ == "__main__":
                                                     recurrent_network=phrases_recurrent_net,
                                                     out_features=text_semantic_size,
                                                     device=device)
-    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=aggregate_words_by_mean,
+    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=f_aggregate,
                                                 f_similarity=torch.cosine_similarity, f_activation=torch.relu)
 
     # create dataset adapter

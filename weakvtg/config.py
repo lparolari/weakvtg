@@ -20,6 +20,7 @@ __defaults = {
     "image_embedding_size": 2053,
     "image_semantic_size": 500,
     "image_semantic_hidden_layers": 2,
+    "concept_similarity_aggregation_strategy": "mean",
     "n_box": 100,
     "n_epochs": 15,
     "device_name": "cpu",
