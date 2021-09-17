@@ -245,9 +245,6 @@ def get_concept_similarity(phrase_embedding_t, box_class_embedding_t, f_aggregat
     n_box = box_class_embedding.size()[-2]
     n_ph = phrase_embedding.size()[-3]
 
-    # inhibit contributions of padded words in `f_aggregate`
-    # phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_embedding_mask == 0, value=0)  # TODO serve per masked mean! Dovrebbe essere riaggiunto???
-
     phrase_embedding = f_aggregate(phrase_embedding_t, box_class_embedding_t, dim=-2, f_similarity=f_similarity)
 
     box_class_embedding = box_class_embedding.unsqueeze(-3).repeat(1, n_ph, 1, 1)
@@ -266,7 +263,7 @@ def get_concept_similarity(phrase_embedding_t, box_class_embedding_t, f_aggregat
 
 def aggregate_words_by_max(phrase_embedding_t, box_class_embedding_t, *_args, f_similarity, **_kwargs):
     """
-    Return the similarity of the word which is the most similar wrt bounding box's class for each phrase.
+    Return the embedding of the word word which is the most similar wrt bounding box's class, for each phrase.
 
     :param box_class_embedding_t: A ([*, d1, d4], [*, d1, 1]) tuple of tensors
     :param phrase_embedding_t: A ([*, d2, d3, d4], [*, d2, d3, 1]) tuple of tensors
@@ -275,6 +272,22 @@ def aggregate_words_by_max(phrase_embedding_t, box_class_embedding_t, *_args, f_
     """
     maximum_similarity_box_t = get_maximum_similarity_box(phrase_embedding_t, box_class_embedding_t, f_similarity)
     return get_maximum_similarity_word(phrase_embedding_t, maximum_similarity_box_t)
+
+
+def aggregate_words_by_mean(phrase_embedding_t, *_args, dim, **_kwargs):
+    """
+    Return the averaged embedding of words in a phrase, for each phrase.
+
+    :param phrase_embedding_t: A ([*, d1], [*, 1]) tuple of tensors
+    :param dim: The dimension to reduce
+    :return: A [*] tensor
+    """
+    (phrase_embedding, phrase_embedding_mask) = phrase_embedding_t
+
+    # inhibit contributions of padded words
+    phrase_embedding = torch.masked_fill(phrase_embedding, mask=phrase_embedding_mask == 0, value=0)
+
+    return phrase_embedding.sum(dim=dim) / phrase_embedding_mask.sum(dim=dim)
 
 
 def get_maximum_similarity_box(phrase_embedding_t, box_class_embedding_t, f_similarity):
