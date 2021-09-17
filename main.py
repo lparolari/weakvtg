@@ -155,11 +155,6 @@ if __name__ == "__main__":
     test_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=test_idx_filepath, process_fn=process_fn)
 
     # create core tools
-    # * tokenizer
-    # * vocab
-    # * phrases embedding net
-    # * phrases recurrent net
-
     tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(get_nlp()))
 
     vocab = load_vocab_from_json(vocab_filepath)
@@ -197,7 +192,7 @@ if __name__ == "__main__":
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_function,
                                                num_workers=num_workers, prefetch_factor=prefetch_factor)
 
-    # create core tools for training
+    # create model, optimizer and criterion
     model = WeakVtgModel(
         phrases_embedding_net=phrases_embedding_net,
         phrases_recurrent_net=phrases_recurrent_net,
@@ -211,9 +206,12 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(device=device)
 
+    # restore model, if needed
     start_epoch = 0
     if restore is not None:
         start_epoch = load_model(restore, model, optimizer, device=device)
+
+    # start the game
 
     def do_train():
         _, valid_history = train(train_loader, valid_loader, model, optimizer, criterion,
