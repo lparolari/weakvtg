@@ -1,4 +1,3 @@
-import logging
 import os
 import random
 
@@ -9,6 +8,7 @@ from torch.utils.data.dataset import T_co
 from weakvtg import iox, bbox, anchors
 from weakvtg.padder import get_phrases_tensor, get_padded_examples, get_number_examples, get_max_length_examples, \
     get_max_length_phrases, get_indexed_phrases_per_example
+from weakvtg.tokenizer import get_noun_phrases, get_text
 from weakvtg.utils import pivot
 
 
@@ -151,7 +151,7 @@ def read_index(filename: str):
         return [line.strip("\n") for line in f.readlines()]
 
 
-def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
+def process_example(example, *, n_boxes_to_keep: int = 100, n_active_box: int = 3, nlp=None, get_noun_phrases=None):
     def pad_boxes():
         """
         Pad boxes and update `example` as a side effect.
@@ -220,6 +220,20 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
 
         example["phrases_2_crd_index"] = best_iou_index.detach().numpy().tolist()
 
+    def noun_phrases():
+        def extract(phrase): return get_noun_phrases(nlp(phrase))
+        def clamp(phrase, noun_phrases): return noun_phrases if len(noun_phrases) > 0 else [phrase]
+        def join(noun_phrases): return " ".join(noun_phrases)
+
+        phrases = example["phrases"]
+
+        noun_phrases = list(map(extract, phrases))
+        noun_phrases = list(map(lambda x: clamp(x[0], x[1]), zip(phrases, noun_phrases)))
+        noun_phrases = list(map(join, noun_phrases))
+        noun_phrases = list(noun_phrases)
+
+        example["phrases"] = noun_phrases
+
     example["id"] = int(example["id"])
     example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
@@ -232,6 +246,9 @@ def process_example(example, n_boxes_to_keep: int = 100, n_active_box: int = 3):
     # requires `pad_boxes` to prevent ground truth to be out of bounds,
     # requires `remove_background` to chose a valid bb
     gt_box_index()
+
+    if nlp is not None and get_noun_phrases is not None:
+        noun_phrases()
 
     return example
 

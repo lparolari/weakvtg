@@ -14,10 +14,11 @@ from weakvtg.config import get_config
 from weakvtg.classes import get_classes, load_classes
 from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss
-from weakvtg.math import get_argmax, get_max, masked_mean
+from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
-    get_phrases_representation, get_phrases_embedding, get_concept_similarity, aggregate_words_by_max
-from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp
+    get_phrases_representation, get_phrases_embedding, get_concept_similarity, aggregate_words_by_max, \
+    aggregate_words_by_mean
+from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp, get_noun_phrases, root_chunk_iter
 from weakvtg.train import train, load_model, test_example, test, classes_frequency, concepts_frequency
 from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list, get_word_embedding
 
@@ -147,15 +148,9 @@ if __name__ == "__main__":
 
     logging.info(f"Model started with following parameters: {config}")
 
-    # create dataset adapter
-    process_fn = functools.partial(process_example, n_boxes_to_keep=n_box)
-
-    train_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=train_idx_filepath, process_fn=process_fn)
-    valid_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=valid_idx_filepath, process_fn=process_fn)
-    test_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=test_idx_filepath, process_fn=process_fn)
-
     # create core tools
-    tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(get_nlp()))
+    nlp = get_nlp()
+    tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(nlp))
 
     vocab = load_vocab_from_json(vocab_filepath)
     classes_vocab = load_vocab_from_list(load_classes(classes_vocab_filepath))
@@ -181,8 +176,16 @@ if __name__ == "__main__":
                                                     recurrent_network=phrases_recurrent_net,
                                                     out_features=text_semantic_size,
                                                     device=device)
-    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=aggregate_words_by_max,
+    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=aggregate_words_by_mean,
                                                 f_similarity=torch.cosine_similarity, f_activation=torch.relu)
+
+    # create dataset adapter
+    process_fn = functools.partial(process_example, n_boxes_to_keep=n_box, nlp=nlp,
+                                   get_noun_phrases=functools.partial(get_noun_phrases, f_chunking=root_chunk_iter))
+
+    train_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=train_idx_filepath, process_fn=process_fn)
+    valid_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=valid_idx_filepath, process_fn=process_fn)
+    test_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=test_idx_filepath, process_fn=process_fn)
 
     # setup dataloader
     collate_function = functools.partial(collate_fn, tokenizer=tokenizer, vocab=vocab)
