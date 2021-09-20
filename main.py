@@ -192,7 +192,8 @@ if __name__ == "__main__":
                                                     out_features=text_semantic_size,
                                                     device=device)
     _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=f_aggregate,
-                                                f_similarity=torch.cosine_similarity, f_activation=torch.relu)
+                                                f_similarity=torch.cosine_similarity,
+                                                f_activation=functools.partial(torch.threshold, threshold=.2, value=.0))
 
     # create dataset adapter
     process_fn = functools.partial(process_example, n_boxes_to_keep=n_box, nlp=nlp,
