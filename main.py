@@ -43,6 +43,21 @@ def make_concept_similarity_f_aggregate(kind):
     return fs[kind]
 
 
+def make_concept_similarity_f_activation(use_sign: bool, threshold: float):
+    f_sign = torch.nn.Identity()
+    f_threshold = functools.partial(torch.threshold, threshold=threshold, value=0.)
+
+    if use_sign:
+        f_sign = torch.sign
+
+    def activation(x):
+        x = f_sign(x)
+        x = f_threshold(x)
+        return x
+
+    return activation
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train, validate, test or plot some example with `weakvtg` model.")
 
@@ -66,6 +81,8 @@ def parse_args():
     parser.add_argument("--image-semantic-size", type=int, default=None)
     parser.add_argument("--image-semantic-hidden-layers", type=int, default=None)
     parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
+    parser.add_argument("--concept-similarity-activation-threshold", type=float, default=None)
+    parser.add_argument("--concept-similarity-activation-sign", action="store_true", default=None)
     parser.add_argument("--n-box", type=int, default=None)
     parser.add_argument("--n-epochs", type=int, default=None)
     parser.add_argument("--device-name", type=str, default=None)
@@ -113,6 +130,8 @@ if __name__ == "__main__":
         "image_semantic_size": args.image_semantic_size,
         "image_semantic_hidden_layers": args.image_semantic_hidden_layers,
         "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
+        "concept_similarity_activation_threshold": args.concept_similarity_activation_threshold,
+        "concept_similarity_activation_sign": args.concept_similarity_activation_sign,
         "n_box": args.n_box,
         "n_epochs": args.n_epochs,
         "device_name": args.device_name,
@@ -141,6 +160,8 @@ if __name__ == "__main__":
     image_semantic_size = config["image_semantic_size"]
     image_semantic_hidden_layers = config["image_semantic_hidden_layers"]
     concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
+    concept_similarity_activation_threshold = config["concept_similarity_activation_threshold"]
+    concept_similarity_activation_sign = config["concept_similarity_activation_sign"]
     n_box = config["n_box"]
     n_epochs = config["n_epochs"]
     device_name = config["device_name"]
@@ -193,7 +214,9 @@ if __name__ == "__main__":
                                                     device=device)
     _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=f_aggregate,
                                                 f_similarity=torch.cosine_similarity,
-                                                f_activation=functools.partial(torch.threshold, threshold=.2, value=.0))
+                                                f_activation=make_concept_similarity_f_activation(
+                                                    concept_similarity_activation_sign,
+                                                    concept_similarity_activation_threshold))
 
     # create dataset adapter
     process_fn = functools.partial(process_example, n_boxes_to_keep=n_box, nlp=nlp,
