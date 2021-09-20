@@ -23,9 +23,13 @@ class WeakVtgLoss(nn.Module):
         phrases_synthetic = get_synthetic_mask(phrases_mask)
         phrases_synthetic_negative = get_synthetic_mask(phrases_mask_negative)
 
-        (predicted_score_positive, predicted_score_negative) = output[0]  # [b, n_chunks, n_boxes]
+        (predicted_score_positive, predicted_score_negative) = output[0]  # [b, n_ph, n_box]
+        (positive_concept_similarity, negative_concept_similarity) = output[1]  # [b, n_ph, n_box]
 
-        def _get_scores(scores, phrases_mask, boxes_mask):
+        positive_concept_similarity_mask = positive_concept_similarity > 0
+        negative_concept_similarity_mask = negative_concept_similarity > 0
+
+        def _get_scores(scores, phrases_mask, boxes_mask, concept_mask):
             """
             Fill all padded scores with zeros.
             """
@@ -35,13 +39,16 @@ class WeakVtgLoss(nn.Module):
 
             scores = torch.masked_fill(scores, phrases_mask == 0, value=0)
             scores = torch.masked_fill(scores, boxes_mask == 0, value=0)
+            scores = torch.masked_fill(scores, concept_mask == 0, value=0)
 
             return scores
 
         score_positive_mask = phrases_synthetic
         score_negative_mask = phrases_synthetic_negative
-        score_positive = _get_scores(predicted_score_positive, score_positive_mask, boxes_mask)
-        score_negative = _get_scores(predicted_score_negative, score_negative_mask, boxes_mask)
+        score_positive = _get_scores(predicted_score_positive, score_positive_mask, boxes_mask,
+                                     positive_concept_similarity_mask)
+        score_negative = _get_scores(predicted_score_negative, score_negative_mask, boxes_mask,
+                                     negative_concept_similarity_mask)
 
         l_disc = self.loss(
             (score_positive, score_positive_mask),
