@@ -386,6 +386,9 @@ def get_maximum_similarity_word(phrase_embedding_t, maximum_similarity_box_t):
 
 
 def create_phrases_embedding_network(vocab, pretrained_embeddings, embedding_size, freeze=False):
+    import re
+    import numpy as np
+
     vocab_size = len(vocab)
     out_of_vocabulary = 0
 
@@ -395,12 +398,26 @@ def create_phrases_embedding_network(vocab, pretrained_embeddings, embedding_siz
 
     for word_idx in range(vocab_size):
         word = vocab.get_itos()[word_idx]
-        if word in pretrained_words:
-            embedding_idx = pretrained_embeddings.stoi[word]
-            embedding_matrix_values[word_idx, :] = pretrained_embeddings.vectors[embedding_idx]
+
+        # for out of vocabulary words, we compute a meaningful representation instead of random initialization
+        # we split words and compute the mean of representations
+
+        word_split = re.split(r"\s|,|\.", word)  # split by space, column and dot
+
+        word_count = 0
+        word_rep = np.zeros([embedding_size])
+
+        for word_tmp in word_split:
+            if word_tmp in pretrained_words:
+                word_count += 1
+                embedding_idx = pretrained_embeddings.stoi[word_tmp]
+                word_rep = np.add(word_rep, pretrained_embeddings.vectors[embedding_idx])
+
+        if word_count > 0:
+            word_rep = word_rep / word_count
+            embedding_matrix_values[word_idx, :] = word_rep
         else:
             out_of_vocabulary += 1
-            # nn.init.uniform_(embedding_matrix_values[idx, :], -1, 1)
             nn.init.normal_(embedding_matrix_values[word_idx, :])
 
     if out_of_vocabulary != 0:
