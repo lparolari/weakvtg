@@ -13,7 +13,7 @@ def get_concept_similarity(phrase_embedding_t, box_class_embedding_t, f_aggregat
     :param f_aggregate: A function that computes aggregate representation of a phrase
     :param f_similarity: A similarity function
     :param f_activation: An activation function, applied on final similarity score
-    :return: A [*, d1, d2] tensor
+    :return: A [*, d2, d1] tensor
     """
     box_class_embedding, box_class_embedding_mask = box_class_embedding_t
     phrase_embedding, phrase_embedding_mask = phrase_embedding_t
