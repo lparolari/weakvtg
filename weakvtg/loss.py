@@ -1,10 +1,8 @@
-import logging
-
 import torch
 import torch.nn as nn
 
 from weakvtg import anchors
-from weakvtg.corel import CosineARLoss
+from weakvtg.corel import arloss
 from weakvtg.mask import get_synthetic_mask
 
 
@@ -13,7 +11,6 @@ class WeakVtgLoss(nn.Module):
         super().__init__()
         self.get_concept_similarity_direction = get_concept_similarity_direction
         self.device = device
-        self.loss = CosineARLoss(lam=0.5, device=device)
 
     def forward(self, batch, output):
         boxes = batch["pred_boxes"]
@@ -47,7 +44,7 @@ class WeakVtgLoss(nn.Module):
         score_positive_mask = phrases_synthetic
         score_positive = _get_scores(predicted_score_positive, score_positive_mask, boxes_mask)
 
-        l_disc = self.loss(
+        l_disc = arloss(
             score_positive,
             score_positive_mask,
             boxes_mask,

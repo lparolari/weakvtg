@@ -22,5 +22,5 @@ def test_arloss():
     #   p^2 = (.4 - .5 + .6) / 3 = 1/2 / 3 = 1 / 6
     #   loss = - ( - 1/3 + 1/6 ) / 2 = - ( - 1/6 / 2 ) = - ( - 0.16 / 2 ) = + 0.083
 
-    assert arloss(prediction, prediction_mask, box_mask, concept_direction, 0.).item() \
+    assert arloss(prediction, prediction_mask, box_mask, concept_direction).item() \
            == pytest.approx(0.0833, abs=1e-3)
