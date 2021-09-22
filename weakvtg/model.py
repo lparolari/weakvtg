@@ -35,7 +35,7 @@ class MockModel(Model):
 class WeakVtgModel(Model):
     def __init__(self, phrases_embedding_net, phrases_recurrent_net, image_embedding_net,
                  get_classes_embedding, get_phrases_embedding, get_phrases_representation, get_concept_similarity,
-                 f_similarity):
+                 f_similarity, use_proportional_concept_similarity: bool):
         super().__init__()
 
         self.phrases_embedding_net = phrases_embedding_net
@@ -46,6 +46,7 @@ class WeakVtgModel(Model):
         self.get_phrases_embedding = get_phrases_embedding
         self.get_phrases_representation = get_phrases_representation
         self.get_concept_similarity = get_concept_similarity
+        self.use_proportional_concept_similarity = use_proportional_concept_similarity
 
         self.f_similarity = f_similarity
 
@@ -101,25 +102,20 @@ class WeakVtgModel(Model):
             phrase_embedding = _get_phrases_embedding(phrase)
             return _get_concept_similarity((phrase_embedding, phrase_mask), (box_class_embedding, boxes_mask))
 
-        positive_concept_similarity = concept_similarity(phrases, phrases_mask, boxes_mask)
-        negative_concept_similarity = concept_similarity(phrases_negative, phrases_mask_negative, boxes_mask)
+        def proportional(similarity, logits):
+            if self.use_proportional_concept_similarity:
+                return similarity * logits
+            return positive_logits
 
-        positive_concept_similarity_mask = positive_concept_similarity > 0
-        negative_concept_similarity_mask = negative_concept_similarity > 0
+        positive_concept_similarity = concept_similarity(phrases, phrases_mask, boxes_mask)  # [b, n_ph, n_box]
 
         positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
-        positive_logits = positive_logits * positive_concept_similarity
-        positive_logits = torch.masked_fill(positive_logits, positive_concept_similarity_mask == 0, value=-1)
+        positive_logits = proportional(torch.abs(positive_concept_similarity), positive_logits)
         positive_logits = torch.masked_fill(positive_logits, get_synthetic_mask(phrases_mask) == 0, value=-1)
         positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=-1)
 
-        negative_logits = predict_logits(img_x_negative, phrases_x_negative, f_similarity=self.f_similarity)
-        negative_logits = negative_logits * negative_concept_similarity
-        negative_logits = torch.masked_fill(negative_logits, negative_concept_similarity_mask == 0, value=+1)
-        negative_logits = torch.masked_fill(negative_logits, get_synthetic_mask(phrases_mask_negative) == 0, value=+1)
-        negative_logits = torch.masked_fill(negative_logits, _boxes_mask == 0, value=+1)
-
-        return (positive_logits, negative_logits), (positive_concept_similarity, negative_concept_similarity)
+        return (positive_logits, torch.zeros_like(positive_logits)), \
+               (positive_concept_similarity, torch.zeros_like(positive_concept_similarity))
 
 
 def predict_logits(img_x, phrases_x, f_similarity):

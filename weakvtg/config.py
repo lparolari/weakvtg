@@ -22,7 +22,7 @@ __defaults = {
     "image_semantic_hidden_layers": 2,
     "concept_similarity_aggregation_strategy": "mean",
     "concept_similarity_activation_threshold": 0.,
-    "concept_similarity_activation_sign": False,
+    "use_proportional_concept_similarity": False,
     "n_box": 100,
     "n_epochs": 15,
     "device_name": "cpu",

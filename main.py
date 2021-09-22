@@ -17,7 +17,8 @@ from weakvtg.loss import WeakVtgLoss
 from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
     get_phrases_representation, get_phrases_embedding
-from weakvtg.concept import get_concept_similarity, aggregate_words_by_max, aggregate_words_by_mean
+from weakvtg.concept import get_concept_similarity, aggregate_words_by_max, aggregate_words_by_mean, binary_threshold, \
+    get_concept_similarity_direction
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp, get_noun_phrases, root_chunk_iter
 from weakvtg.train import train, load_model, test_example, test, classes_frequency, concepts_frequency
 from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list, get_word_embedding
@@ -41,21 +42,6 @@ def make_concept_similarity_f_aggregate(kind):
                          f"one of {fs.keys()}")
 
     return fs[kind]
-
-
-def make_concept_similarity_f_activation(use_sign: bool, threshold: float):
-    f_sign = torch.nn.Identity()
-    f_threshold = functools.partial(torch.threshold, threshold=threshold, value=0.)
-
-    if use_sign:
-        f_sign = torch.sign
-
-    def activation(x):
-        x = f_sign(x)
-        x = f_threshold(x)
-        return x
-
-    return activation
 
 
 def parse_args():
@@ -82,7 +68,7 @@ def parse_args():
     parser.add_argument("--image-semantic-hidden-layers", type=int, default=None)
     parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
     parser.add_argument("--concept-similarity-activation-threshold", type=float, default=None)
-    parser.add_argument("--concept-similarity-activation-sign", action="store_true", default=None)
+    parser.add_argument("--use-proportional-concept-similarity", action="store_true", default=None)
     parser.add_argument("--n-box", type=int, default=None)
     parser.add_argument("--n-epochs", type=int, default=None)
     parser.add_argument("--device-name", type=str, default=None)
@@ -131,7 +117,7 @@ if __name__ == "__main__":
         "image_semantic_hidden_layers": args.image_semantic_hidden_layers,
         "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
         "concept_similarity_activation_threshold": args.concept_similarity_activation_threshold,
-        "concept_similarity_activation_sign": args.concept_similarity_activation_sign,
+        "use_proportional_concept_similarity": args.use_proportional_concept_similarity,
         "n_box": args.n_box,
         "n_epochs": args.n_epochs,
         "device_name": args.device_name,
@@ -161,7 +147,7 @@ if __name__ == "__main__":
     image_semantic_hidden_layers = config["image_semantic_hidden_layers"]
     concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
     concept_similarity_activation_threshold = config["concept_similarity_activation_threshold"]
-    concept_similarity_activation_sign = config["concept_similarity_activation_sign"]
+    use_proportional_concept_similarity = config["use_proportional_concept_similarity"]
     n_box = config["n_box"]
     n_epochs = config["n_epochs"]
     device_name = config["device_name"]
@@ -214,9 +200,11 @@ if __name__ == "__main__":
                                                     device=device)
     _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=f_aggregate,
                                                 f_similarity=torch.cosine_similarity,
-                                                f_activation=make_concept_similarity_f_activation(
-                                                    concept_similarity_activation_sign,
-                                                    concept_similarity_activation_threshold))
+                                                f_activation=torch.nn.Identity())
+    _concept_similarity_direction_f_activation = functools.partial(binary_threshold,
+                                                                   threshold=concept_similarity_activation_threshold)
+    _get_concept_similarity_direction = functools.partial(get_concept_similarity_direction,
+                                                          f_activation=_concept_similarity_direction_f_activation)
 
     # create dataset adapter
     process_fn = functools.partial(process_example, n_boxes_to_keep=n_box, nlp=nlp,
@@ -243,10 +231,14 @@ if __name__ == "__main__":
         get_phrases_embedding=_get_phrases_embedding,
         get_phrases_representation=_get_phrases_representation,
         get_concept_similarity=_get_concept_similarity,
-        f_similarity=F.cosine_similarity
+        f_similarity=F.cosine_similarity,
+        use_proportional_concept_similarity=use_proportional_concept_similarity
     )
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
-    criterion = WeakVtgLoss(device=device)
+    criterion = WeakVtgLoss(
+        get_concept_similarity_direction=_get_concept_similarity_direction,
+        device=device
+    )
 
     # restore model, if needed
     start_epoch = 0
