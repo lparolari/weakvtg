@@ -236,8 +236,7 @@ if __name__ == "__main__":
     )
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(
-        get_concept_similarity_direction=_get_concept_similarity_direction,
-        device=device
+        get_concept_similarity_direction=_get_concept_similarity_direction
     )
 
     # restore model, if needed

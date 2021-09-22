@@ -7,10 +7,9 @@ from weakvtg.mask import get_synthetic_mask
 
 
 class WeakVtgLoss(nn.Module):
-    def __init__(self, get_concept_similarity_direction, *, device):
+    def __init__(self, get_concept_similarity_direction):
         super().__init__()
         self.get_concept_similarity_direction = get_concept_similarity_direction
-        self.device = device
 
     def forward(self, batch, output):
         boxes = batch["pred_boxes"]
