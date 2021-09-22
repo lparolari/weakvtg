@@ -182,3 +182,27 @@ def get_maximum_similarity_word(phrase_embedding_t, maximum_similarity_box_t):
     best_word_embedding = best_word_embedding.squeeze(-2)
 
     return best_word_embedding
+
+
+def binary_threshold(x, threshold):
+    """
+    Return a tensor where each value is -1 whether < threshold, +1 otherwise.
+
+    :param x: A [*] tensor
+    :param threshold: A float value
+    :return: A [*] tensor
+    """
+    return torch.as_tensor(x > threshold, dtype=torch.float) * 2 - 1
+
+
+def get_concept_similarity_direction(similarity, f_activation):
+    """
+    Activate the similarity score wrt an activation function.
+
+    The activation function should return a value between -1 and 1.
+
+    :param similarity: A [*] tensor
+    :param f_activation: An activation function f([*]) -> [*]
+    :return: A [*] tensor
+    """
+    return f_activation(similarity)
