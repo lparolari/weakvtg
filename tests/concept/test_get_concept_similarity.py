@@ -2,7 +2,7 @@ import functools
 
 import torch
 
-from weakvtg.model import get_concept_similarity, aggregate_words_by_max
+from weakvtg.concept import get_concept_similarity, aggregate_words_by_max
 
 
 """

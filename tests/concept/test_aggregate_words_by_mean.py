@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from weakvtg.model import aggregate_words_by_mean
+from weakvtg.concept import aggregate_words_by_mean
 
 
 def test_aggregate_words_by_mean():
