@@ -63,7 +63,7 @@ def get_indexed_phrases_per_example(examples: TextualExamples, tokenizer: Tokeni
 
 def get_padded_examples(examples: IndexedExamples, padding_dim: Tuple[int, int, int],
                         padding_value: int,
-                        dtype: type = np.long):
+                        dtype: type = np.int64):
     """
     :param examples: A list of vocabulary-indexed phrases per example (i.e., triple nested lists)
     :param padding_dim: A tuple of three ints representing the padding dimension of the resulting tensor
