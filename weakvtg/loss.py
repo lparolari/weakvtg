@@ -45,9 +45,7 @@ class WeakVtgLoss(nn.Module):
             return scores
 
         score_positive_mask = phrases_synthetic
-        score_negative_mask = phrases_synthetic_negative
         score_positive = _get_scores(predicted_score_positive, score_positive_mask, boxes_mask)
-        score_negative = _get_scores(predicted_score_negative, score_negative_mask, boxes_mask)
 
         l_disc = self.loss(
             score_positive,
