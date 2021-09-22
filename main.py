@@ -16,8 +16,8 @@ from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss
 from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
-    get_phrases_representation, get_phrases_embedding, get_concept_similarity, aggregate_words_by_max, \
-    aggregate_words_by_mean
+    get_phrases_representation, get_phrases_embedding
+from weakvtg.concept import get_concept_similarity, aggregate_words_by_max, aggregate_words_by_mean
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp, get_noun_phrases, root_chunk_iter
 from weakvtg.train import train, load_model, test_example, test, classes_frequency, concepts_frequency
 from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list, get_word_embedding
