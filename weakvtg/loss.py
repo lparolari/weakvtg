@@ -27,21 +27,8 @@ class WeakVtgLoss(nn.Module):
 
         concept_direction = get_concept_similarity_direction(positive_concept_similarity)  # [b, n_ph, n_box]
 
-        def _get_scores(scores, phrases_mask, boxes_mask):
-            """
-            Fill all padded scores with zeros.
-            """
-            n_ph = scores.size()[-2]
-
-            boxes_mask = boxes_mask.unsqueeze(-2).repeat(1, n_ph, 1)
-
-            scores = torch.masked_fill(scores, phrases_mask == 0, value=0)
-            scores = torch.masked_fill(scores, boxes_mask == 0, value=0)
-
-            return scores
-
         score_positive_mask = phrases_synthetic
-        score_positive = _get_scores(predicted_score_positive, score_positive_mask, boxes_mask)
+        score_positive = predicted_score_positive
 
         l_disc = arloss(
             score_positive,
