@@ -371,7 +371,8 @@ def concepts_frequency(loader, vocab, class_vocab, get_classes_embedding, get_ph
     Print in a CSV form a concept (i.e., one of the 1600 classes) and its frequency in term of how many times a word
     from a phrase with maximum similarity wrt the bounding boxes is selected.
     """
-    from weakvtg.model import get_box_class, get_maximum_similarity_box
+    from weakvtg.model import get_box_class
+    from weakvtg.concept import get_maximum_similarity_box
     from weakvtg.oov import oov_words
 
     word_frequencies = np.zeros(len(vocab)).astype(int)
