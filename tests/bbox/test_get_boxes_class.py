@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from weakvtg.dataset import get_boxes_class
+from weakvtg.bbox import get_boxes_class
 
 
 @pytest.fixture

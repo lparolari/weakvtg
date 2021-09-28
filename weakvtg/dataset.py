@@ -6,9 +6,9 @@ from torch.utils.data import Dataset
 from torch.utils.data.dataset import T_co
 
 from weakvtg import iox, bbox, anchors
+from weakvtg.bbox import get_boxes_class
 from weakvtg.padder import get_phrases_tensor, get_padded_examples, get_number_examples, get_max_length_examples, \
     get_max_length_phrases, get_indexed_phrases_per_example
-from weakvtg.tokenizer import get_noun_phrases, get_text
 from weakvtg.utils import pivot
 
 
@@ -271,10 +271,6 @@ def process_example(example, *, n_boxes_to_keep: int = 100, n_active_box: int = 
 def get_boxes_mask_no_background(boxes_mask, boxes_class, background_class_index=0):
     is_not_background = boxes_class != background_class_index
     return torch.logical_and(boxes_mask, is_not_background)
-
-
-def get_boxes_class(boxes_class_probability):
-    return torch.argmax(boxes_class_probability, dim=-1)
 
 
 def get_class_count(box_class, n_class=-1):

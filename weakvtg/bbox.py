@@ -1,3 +1,6 @@
+import torch
+
+
 def scale_bbox(bbox_list, width, height):
     """
     Normalize a bounding box give max_x and max_y.
@@ -12,3 +15,7 @@ def scale_bbox(bbox_list, width, height):
         norm_cr = [xmin / width, ymin / height, xmax / width, ymax / height]
         results.append(norm_cr)
     return results
+
+
+def get_boxes_class(boxes_class_probability):
+    return torch.argmax(boxes_class_probability, dim=-1)

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from weakvtg import anchors
-from weakvtg.dataset import get_boxes_class  # TODO: we should move this function to another module
+from weakvtg.bbox import get_boxes_class
 from weakvtg.mask import get_synthetic_mask
 
 
