@@ -321,8 +321,6 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
 
 
 def classes_frequency(loader, model, optimizer, classes):
-    # TODO: replace copy paste to function calls
-
     pred_classes_counter = [0] * len(classes)
     gt_classes_counter = [0] * len(classes)
 
