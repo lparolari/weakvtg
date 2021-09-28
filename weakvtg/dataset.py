@@ -135,6 +135,7 @@ def collate_fn(batch, tokenizer, vocab):
         "pred_boxes_features": torch.tensor(batch["pred_boxes_features"], dtype=torch.float32),
         "pred_active_box_index": torch.tensor(batch["pred_active_box_index"], dtype=torch.long),
         "pred_boxes_mask": torch.tensor(batch["pred_boxes_mask"], dtype=torch.bool),
+        "pred_boxes_class_count": torch.tensor(batch["pred_boxes_class_count"], dtype=torch.int),
         "sentence": sentence,
         "sentence_mask": sentence_mask,
         "phrases": phrases,
@@ -142,7 +143,7 @@ def collate_fn(batch, tokenizer, vocab):
         "phrases_negative": phrases_negative,
         "phrases_mask_negative": phrases_mask_negative,
         "phrases_2_crd": phrases_2_crd,
-        "phrases_2_crd_index": phrases_2_crd_index
+        "phrases_2_crd_index": phrases_2_crd_index,
     }
 
 
@@ -234,6 +235,16 @@ def process_example(example, *, n_boxes_to_keep: int = 100, n_active_box: int = 
 
         example["phrases"] = noun_phrases
 
+    def box_class_count():
+        box_class_prob = torch.tensor(example["pred_cls_prob"])
+        box_class = get_boxes_class(box_class_prob)
+
+        n_class = box_class_prob.size()[-1]
+
+        box_class_count = get_box_class_count(box_class, n_class=n_class)
+
+        example["pred_boxes_class_count"] = box_class_count.detach().numpy().tolist()
+
     example["id"] = int(example["id"])
     example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
@@ -246,6 +257,10 @@ def process_example(example, *, n_boxes_to_keep: int = 100, n_active_box: int = 
     # requires `pad_boxes` to prevent ground truth to be out of bounds,
     # requires `remove_background` to chose a valid bb
     gt_box_index()
+
+    # requires `pad_boxes` because it leverages on same number of bounding box
+    # requires `remove_background` to compute unbiased frequencies
+    box_class_count()
 
     if nlp is not None and get_noun_phrases is not None:
         noun_phrases()
@@ -260,3 +275,19 @@ def get_boxes_mask_no_background(boxes_mask, boxes_class, background_class_index
 
 def get_boxes_class(boxes_class_probability):
     return torch.argmax(boxes_class_probability, dim=-1)
+
+
+def get_box_class_count(box_class, n_class=-1):
+    """
+    Return a tensor where each element of the last dimension represent a class and its value is the number of
+    bounding box with given class.
+
+    :param box_class: A [*, d1] tensor
+    :param n_class: Total number of classes
+    :return: A [*, n_class] tensor
+    """
+    import torch.nn.functional as F
+
+    box_class_one_hot = F.one_hot(box_class, num_classes=n_class)
+    box_class_one_hot = torch.transpose(box_class_one_hot, dim0=-1, dim1=-2)
+    return box_class_one_hot.sum(dim=-1)
