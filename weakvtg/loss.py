@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from weakvtg import anchors
 from weakvtg.corel import arloss
+from weakvtg.dataset import get_boxes_class  # TODO: we should move this function to another module
 from weakvtg.mask import get_synthetic_mask
 
 
@@ -12,15 +13,19 @@ class WeakVtgLoss(nn.Module):
         self.get_concept_similarity_direction = get_concept_similarity_direction
 
     def forward(self, batch, output):
+        get_concept_similarity_direction = self.get_concept_similarity_direction
+
         boxes = batch["pred_boxes"]
         boxes_mask = batch["pred_boxes_mask"]
+        boxes_class_pred = batch["pred_cls_prob"]
+        boxes_class = get_boxes_class(boxes_class_pred)
+        class_count = batch["class_count"]
         phrases_2_crd = batch["phrases_2_crd"]
         phrases_mask = batch["phrases_mask"]
         phrases_mask_negative = batch["phrases_mask_negative"]
         phrases_synthetic = get_synthetic_mask(phrases_mask)
         phrases_synthetic_negative = get_synthetic_mask(phrases_mask_negative)
-
-        get_concept_similarity_direction = self.get_concept_similarity_direction
+        boxes_class_count = get_box_class_count(boxes_class, class_count)
 
         (predicted_score_positive, predicted_score_negative) = output[0]  # [b, n_ph, n_box]
         (positive_concept_similarity, negative_concept_similarity) = output[1]  # [b, n_ph, n_box]
@@ -34,6 +39,7 @@ class WeakVtgLoss(nn.Module):
             score_positive,
             score_positive_mask,
             boxes_mask,
+            boxes_class_count,
             concept_direction
         )
 
@@ -141,3 +147,14 @@ def filter_scores(scores, mask):
     """
     index = mask.long().squeeze(-1).nonzero(as_tuple=True)
     return scores[index]
+
+
+def get_box_class_count(box_class, class_count):
+    """
+    Return a tensor with the number of bounding boxes with class c for each bounding box b, where `c = cls(b)`.
+
+    :param box_class: A [*, d1] tensor
+    :param class_count: A [*, d2] tensor
+    :return: A [*, d1] tensor
+    """
+    return torch.gather(class_count, dim=-1, index=box_class)
