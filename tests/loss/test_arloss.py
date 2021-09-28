@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from weakvtg.corel import arloss
+from weakvtg.loss import arloss
 
 
 def test_arloss():

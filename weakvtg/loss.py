@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 from weakvtg import anchors
-from weakvtg.corel import arloss
 from weakvtg.dataset import get_boxes_class  # TODO: we should move this function to another module
 from weakvtg.mask import get_synthetic_mask
 
@@ -60,6 +59,44 @@ class WeakVtgLoss(nn.Module):
         validation = get_validation(boxes, phrases_2_crd, predicted_score_positive, phrases_synthetic)
 
         return l_disc, *validation
+
+
+def arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direction, eps=1e-08):
+    """
+    :param prediction: A [*, d1, d2] tensor
+    :param prediction_mask: A [*, d1, 1] tensor
+    :param box_mask: A [*, d2] tensor
+    :param box_class_count: A [*, d2] tensor
+    :param concept_direction: A [*, d1, d2] tensor
+    :param eps: A small float value to prevent division by zero
+    :return: A float value
+    """
+
+    def average_over_boxes(x, m):
+        return x.sum(dim=-1) / m.sum(dim=-1).unsqueeze(-1)
+
+    def average_over_phrases(x, m):
+        return x.sum() / m.sum()
+
+    # adjust dimensions
+    n_ph = prediction.size()[-2]
+
+    box_mask_unsqueeze = box_mask.unsqueeze(-2).repeat(1, n_ph, 1)
+    box_class_count = box_class_count.unsqueeze(-2).repeat(1, n_ph, 1)
+    box_class_count = box_class_count + eps  # prevent division by zero
+
+    # compute loss
+    loss = -1 * (concept_direction * prediction / box_class_count)
+
+    # masking padded scores
+    loss = torch.masked_fill(loss, prediction_mask == 0, value=0)
+    loss = torch.masked_fill(loss, box_mask_unsqueeze == 0, value=0)
+
+    # add up contributions
+    loss = average_over_boxes(loss, box_mask)
+    loss = average_over_phrases(loss, prediction_mask)
+
+    return loss
 
 
 def get_iou_scores(boxes, gt, mask):
