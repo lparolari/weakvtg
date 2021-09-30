@@ -3,6 +3,7 @@ import functools
 import logging
 
 import numpy as np
+import spellchecker
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -88,6 +89,7 @@ def parse_args():
     parser.add_argument("--save-folder", type=str, default=None)
     parser.add_argument("--suffix", type=str, default=None)
     parser.add_argument("--restore", type=str, default=None)
+    parser.add_argument("--use-spell-correction", action="store_true", default=None)
 
     parser.add_argument("--workflow", type=str, choices=["train", "valid", "test", "test-example", "classes-frequency",
                                                          "concepts-frequency"],
@@ -138,6 +140,7 @@ def main():
         "save_folder": args.save_folder,
         "suffix": args.suffix,
         "restore": args.restore,
+        "use_spell_correction": args.use_spell_correction,
     })
 
     batch_size = config["batch_size"]
@@ -169,6 +172,7 @@ def main():
     save_folder = config["save_folder"]
     suffix = config["suffix"]
     restore = config["restore"]
+    use_spell_correction = config["use_spell_correction"]
 
     device = torch.device(device_name)
 
@@ -186,6 +190,7 @@ def main():
     # create core tools
     nlp = get_nlp()
     tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(nlp))
+    f_spell_correction = spellchecker.SpellChecker().correction if use_spell_correction else None
 
     f_aggregate = make_concept_similarity_f_aggregate(concept_similarity_aggregation_strategy)
 
@@ -194,9 +199,10 @@ def main():
 
     word_embedding = get_word_embedding(word_embedding, text_embedding_size)
 
-    phrases_embedding_net = create_phrases_embedding_network(vocab, word_embedding, text_embedding_size, freeze=True)
-    classes_embedding_net = create_phrases_embedding_network(classes_vocab, word_embedding, text_embedding_size,
-                                                             freeze=True)
+    phrases_embedding_net = create_phrases_embedding_network(vocab, word_embedding, embedding_size=text_embedding_size,
+                                                             f_spell_correction=f_spell_correction, freeze=True)
+    classes_embedding_net = create_phrases_embedding_network(classes_vocab, word_embedding,
+                                                             embedding_size=text_embedding_size, freeze=True)
 
     phrases_recurrent_layer = make_phrases_recurrent(rnn_type=text_recurrent_network_type)
     phrases_recurrent_net = phrases_recurrent_layer(text_embedding_size, text_semantic_size,

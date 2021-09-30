@@ -51,14 +51,14 @@ class WeakVtgModel(Model):
         self.f_similarity = f_similarity
 
     def forward(self, batch):
-        pred_n_boxes = batch["pred_n_boxes"]                    # [b]
-        boxes = batch["pred_boxes"]                             # [b, n_boxes, 4]
-        boxes_mask = batch["pred_boxes_mask"]                   # [b, n_boxes]
-        boxes_features = batch["pred_boxes_features"]           # [b, n_boxes, 2048]
-        boxes_class_prob = batch["pred_cls_prob"]               # [b, n_boxes, n_class]
-        phrases = batch["phrases"]                              # [b, n_ph+, n_words+]
-        phrases_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
-        phrases_negative = batch["phrases_negative"]            # [b, n_ph-, n_words-]
+        pred_n_boxes = batch["pred_n_boxes"]  # [b]
+        boxes = batch["pred_boxes"]  # [b, n_boxes, 4]
+        boxes_mask = batch["pred_boxes_mask"]  # [b, n_boxes]
+        boxes_features = batch["pred_boxes_features"]  # [b, n_boxes, 2048]
+        boxes_class_prob = batch["pred_cls_prob"]  # [b, n_boxes, n_class]
+        phrases = batch["phrases"]  # [b, n_ph+, n_words+]
+        phrases_mask = batch["phrases_mask"]  # [b, n_ph+, n_words+]
+        phrases_negative = batch["phrases_negative"]  # [b, n_ph-, n_words-]
         phrases_mask_negative = batch["phrases_mask_negative"]  # [b, n_ph-, n_words-]
 
         box_class = get_box_class(boxes_class_prob)  # [b, n_boxes]
@@ -226,9 +226,20 @@ def get_box_class(probability):
     return torch.argmax(probability, dim=-1)
 
 
-def create_phrases_embedding_network(vocab, pretrained_embeddings, embedding_size, freeze=False):
+def create_phrases_embedding_network(vocab, pretrained_embeddings, *, embedding_size=300, freeze=False,
+                                     f_spell_correction=None):
     import re
     import numpy as np
+
+    from weakvtg.utils import identity
+
+    if f_spell_correction is None:
+        f_spell_correction = identity
+
+    def get_embedding_idx(words, word):
+        if f_spell_correction(word) in words:
+            return pretrained_embeddings.stoi[f_spell_correction(word)]
+        return -1
 
     vocab_size = len(vocab)
     out_of_vocabulary = 0
@@ -250,9 +261,11 @@ def create_phrases_embedding_network(vocab, pretrained_embeddings, embedding_siz
 
         for word_tmp in word_split:
             if word_tmp in pretrained_words:
-                word_count += 1
-                embedding_idx = pretrained_embeddings.stoi[word_tmp]
-                word_rep = np.add(word_rep, pretrained_embeddings.vectors[embedding_idx])
+                embedding_idx = get_embedding_idx(pretrained_words, word_tmp)
+
+                if embedding_idx != -1:
+                    word_count += 1
+                    word_rep = np.add(word_rep, pretrained_embeddings.vectors[embedding_idx])
 
         if word_count > 0:
             word_rep = word_rep / word_count
