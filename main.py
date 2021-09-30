@@ -13,7 +13,7 @@ import wandb
 from weakvtg.config import get_config
 from weakvtg.classes import get_classes, load_classes
 from weakvtg.dataset import VtgDataset, collate_fn, process_example
-from weakvtg.loss import WeakVtgLoss
+from weakvtg.loss import WeakVtgLoss, loss_inversely_correlated, loss_inversely_correlated_box_class_count_scaled
 from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
     get_phrases_representation, get_phrases_embedding
@@ -39,7 +39,19 @@ def make_concept_similarity_f_aggregate(kind):
 
     if kind not in fs:
         raise ValueError(f"Provided concept similarity aggregation strategy ({kind}) is not supported. Please use "
-                         f"one of {fs.keys()}")
+                         f"one of {list(fs.keys())}")
+
+    return fs[kind]
+
+
+def make_f_loss(kind):
+    fs = {
+        "inversely_correlated": loss_inversely_correlated,
+        "inversely_correlated_box_class_count_scaled": loss_inversely_correlated_box_class_count_scaled
+    }
+
+    if kind not in fs:
+        raise ValueError(f"Provided loss kind ({kind}) is not supported. Please use one of {list(fs.keys())}")
 
     return fs[kind]
 
@@ -69,6 +81,7 @@ def parse_args():
     parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
     parser.add_argument("--concept-similarity-activation-threshold", type=float, default=None)
     parser.add_argument("--use-proportional-concept-similarity", action="store_true", default=None)
+    parser.add_argument("--loss", type=str, default=None)
     parser.add_argument("--n-box", type=int, default=None)
     parser.add_argument("--n-epochs", type=int, default=None)
     parser.add_argument("--device-name", type=str, default=None)
@@ -87,7 +100,7 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def main():
     print("Hello, World!")
 
     np.random.seed(42)
@@ -118,6 +131,7 @@ if __name__ == "__main__":
         "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
         "concept_similarity_activation_threshold": args.concept_similarity_activation_threshold,
         "use_proportional_concept_similarity": args.use_proportional_concept_similarity,
+        "loss": args.loss,
         "n_box": args.n_box,
         "n_epochs": args.n_epochs,
         "device_name": args.device_name,
@@ -148,6 +162,7 @@ if __name__ == "__main__":
     concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
     concept_similarity_activation_threshold = config["concept_similarity_activation_threshold"]
     use_proportional_concept_similarity = config["use_proportional_concept_similarity"]
+    loss = config["loss"]
     n_box = config["n_box"]
     n_epochs = config["n_epochs"]
     device_name = config["device_name"]
@@ -236,7 +251,8 @@ if __name__ == "__main__":
     )
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(
-        get_concept_similarity_direction=_get_concept_similarity_direction
+        get_concept_similarity_direction=_get_concept_similarity_direction,
+        f_loss=make_f_loss(loss)
     )
 
     # restore model, if needed
@@ -296,3 +312,7 @@ if __name__ == "__main__":
         do_concepts_frequency()
 
     print("Goodbye, World!")
+
+
+if __name__ == "__main__":
+    main()

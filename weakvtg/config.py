@@ -23,6 +23,7 @@ __defaults = {
     "concept_similarity_aggregation_strategy": "mean",
     "concept_similarity_activation_threshold": 0.,
     "use_proportional_concept_similarity": False,
+    "loss": "inversely_correlated",
     "n_box": 100,
     "n_epochs": 15,
     "device_name": "cpu",

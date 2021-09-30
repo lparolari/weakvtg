@@ -7,12 +7,14 @@ from weakvtg.mask import get_synthetic_mask
 
 
 class WeakVtgLoss(nn.Module):
-    def __init__(self, get_concept_similarity_direction):
+    def __init__(self, get_concept_similarity_direction, f_loss):
         super().__init__()
         self.get_concept_similarity_direction = get_concept_similarity_direction
+        self.f_loss = f_loss
 
     def forward(self, batch, output):
         get_concept_similarity_direction = self.get_concept_similarity_direction
+        f_loss = self.f_loss
 
         boxes = batch["pred_boxes"]
         boxes_mask = batch["pred_boxes_mask"]
@@ -39,7 +41,8 @@ class WeakVtgLoss(nn.Module):
             score_positive_mask,
             boxes_mask,
             boxes_class_count,
-            concept_direction
+            concept_direction,
+            f_loss=f_loss
         )
 
         def get_validation(boxes, boxes_gt, scores, mask):
@@ -61,14 +64,21 @@ class WeakVtgLoss(nn.Module):
         return l_disc, *validation
 
 
-def arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direction, eps=1e-08):
+def arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direction, f_loss):
     """
+    Given Q the set of queries, B the set of boxes, loss can be calculated as
+        loss = - sum_{q in Q} p^q / | Q |
+    where
+        p^q = sum_{b in B} f_loss(X, y) / | B |
+        X = prediction, box_class_count
+        y = concept_direction
+
     :param prediction: A [*, d1, d2] tensor
     :param prediction_mask: A [*, d1, 1] tensor
     :param box_mask: A [*, d2] tensor
     :param box_class_count: A [*, d2] tensor
     :param concept_direction: A [*, d1, d2] tensor
-    :param eps: A small float value to prevent division by zero
+    :param f_loss: A loss function, return a [*, d1, d2] tensor
     :return: A float value
     """
 
@@ -80,13 +90,14 @@ def arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direc
 
     # adjust dimensions
     n_ph = prediction.size()[-2]
-
     box_mask_unsqueeze = box_mask.unsqueeze(-2).repeat(1, n_ph, 1)
     box_class_count = box_class_count.unsqueeze(-2).repeat(1, n_ph, 1)
-    box_class_count = box_class_count + eps  # prevent division by zero
 
     # compute loss
-    loss = -1 * (concept_direction * prediction / box_class_count)
+    X = (prediction, box_class_count)
+    y = concept_direction
+
+    loss = f_loss(X, y)
 
     # masking padded scores
     loss = torch.masked_fill(loss, prediction_mask == 0, value=0)
@@ -97,6 +108,39 @@ def arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direc
     loss = average_over_phrases(loss, prediction_mask)
 
     return loss
+
+
+def loss_inversely_correlated(X, y):
+    """
+    Return
+        -1 * (concept_direction * prediction)
+    where
+        prediction = X[0]
+        concept_direction = y
+    """
+    prediction, *_ = X
+    concept_direction = y
+
+    return -1 * (concept_direction * prediction)
+
+
+def loss_inversely_correlated_box_class_count_scaled(X, y):
+    """
+    Return
+        -1 * (concept_direction * prediction / box_class_count)
+    where
+        prediction = X[0]
+        box_class_count = X[1]
+        concept_direction = y
+    """
+    eps = 1e-08
+
+    prediction, box_class_count, *_ = X
+    concept_direction = y
+
+    box_class_count = box_class_count + eps  # prevent division by zero
+
+    return -1 * (concept_direction * prediction / box_class_count)
 
 
 def get_iou_scores(boxes, gt, mask):
