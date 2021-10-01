@@ -58,6 +58,8 @@ class WeakVtgModel(Model):
         boxes_class_prob = batch["pred_cls_prob"]               # [b, n_boxes, n_class]
         phrases = batch["phrases"]                              # [b, n_ph+, n_words+]
         phrases_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
+        noun_phrase = batch["noun_phrase"]                      # [b, n_np, n_np_len]
+        noun_phrase_mask = batch["noun_phrase_mask"]            # [b, n_np, n_np_len]
         phrases_negative = batch["phrases_negative"]            # [b, n_ph-, n_words-]
         phrases_mask_negative = batch["phrases_mask_negative"]  # [b, n_ph-, n_words-]
 
@@ -107,7 +109,7 @@ class WeakVtgModel(Model):
                 return similarity * logits
             return positive_logits
 
-        positive_concept_similarity = concept_similarity(phrases, phrases_mask, boxes_mask)  # [b, n_ph, n_box]
+        positive_concept_similarity = concept_similarity(noun_phrase, noun_phrase_mask, boxes_mask)  # [b, n_ph, n_box]
 
         positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
         positive_logits = proportional(torch.abs(positive_concept_similarity), positive_logits)
