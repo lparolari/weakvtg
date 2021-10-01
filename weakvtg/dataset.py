@@ -84,6 +84,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_negative = batch["phrases_negative"]  # [b, n_ph-, n_words-]
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
     phrases_2_crd_index = batch["phrases_2_crd_index"]  # [b, n_ph, 1]
+    noun_phrase = batch["noun_phrase"]  # [b, n_np, n_np_len]
 
     def _get_padded_phrases_2_crd(phrases_2_crd):
         dim = (get_number_examples(phrases_2_crd),
@@ -122,6 +123,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_negative, phrases_mask_negative = get_phrases_tensor(phrases_negative, tokenizer=tokenizer, vocab=vocab)
     phrases_2_crd, _ = _get_padded_phrases_2_crd(phrases_2_crd)
     phrases_2_crd_index, _ = _get_padded_phrases_2_crd_index(phrases_2_crd_index)
+    noun_phrase, noun_phrase_mask = get_phrases_tensor(noun_phrase, tokenizer=tokenizer, vocab=vocab)
 
     return {
         "id": torch.tensor(batch["id"], dtype=torch.long),
@@ -144,6 +146,8 @@ def collate_fn(batch, tokenizer, vocab):
         "phrases_mask_negative": phrases_mask_negative,
         "phrases_2_crd": phrases_2_crd,
         "phrases_2_crd_index": phrases_2_crd_index,
+        "noun_phrase": noun_phrase,
+        "noun_phrase_mask": noun_phrase_mask,
     }
 
 
@@ -233,7 +237,7 @@ def process_example(example, *, n_boxes_to_keep: int = 100, n_active_box: int = 
         noun_phrases = list(map(join, noun_phrases))
         noun_phrases = list(noun_phrases)
 
-        example["phrases"] = noun_phrases
+        example["noun_phrase"] = noun_phrases
 
     def class_count():
         box_class_prob = torch.tensor(example["pred_cls_prob"])
