@@ -30,6 +30,7 @@ __defaults = {
     "save_folder": tempfile.gettempdir(),
     "suffix": "default",
     "restore": None,
+    "use_spell_correction": False,
 }
 
 

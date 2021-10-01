@@ -4,6 +4,7 @@ from unittest import mock
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from spellchecker import SpellChecker
 
 from weakvtg.mask import get_synthetic_mask
 from weakvtg.model import get_image_features, get_phrases_features, create_phrases_embedding_network, \
@@ -54,6 +55,19 @@ def test_create_phrases_embedding_network():
     phrases_embedded = text_embedding(phrases)
 
     assert phrases_embedded.size() == torch.Size((2, 6, 300))
+
+
+def test_create_phrases_embedding_network_given_spell_checker():
+    # noinspection SpellCheckingInspection
+    vocab = get_vocab(collections.Counter({"talbe": 1, "table": 1}))
+
+    text_embedding = create_phrases_embedding_network(vocab, pretrained_embeddings, embedding_size=300, freeze=True,
+                                                      f_spell_correction=SpellChecker().correction)
+
+    phrases = torch.Tensor([[1], [2]]).long()
+    phrases_embedded = text_embedding(phrases)
+
+    assert torch.equal(phrases_embedded[0], phrases_embedded[1])
 
 
 def test_get_phrases_representation():

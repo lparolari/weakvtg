@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+import torch.nn
+
 
 def get_batch_size(batch):
     ids = batch["id"]
@@ -21,8 +23,8 @@ def pivot(list_of_dict):
     return dict_of_list
 
 
-def identity(x):
-    return x
+def identity(*args, **kwargs):
+    return torch.nn.Identity()(*args, **kwargs)
 
 
 def map_dict(d, *, key_fn=None, value_fn=None):
