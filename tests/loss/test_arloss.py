@@ -21,8 +21,12 @@ def test_arloss():
 
     loss = - (p0 + p1) / len(prediction)
 
-    assert arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direction,
-                  f_loss=loss_inversely_correlated).item() == pytest.approx(loss)
+    assert loss.item() == pytest.approx(0.0833, rel=1e-03)
+    assert torch.isclose(
+        loss,
+        arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direction,
+               f_loss=loss_inversely_correlated)
+    )
 
 
 def test_arloss_given_scale_by_box_class_count():
@@ -43,5 +47,8 @@ def test_arloss_given_scale_by_box_class_count():
     loss = - (p0 + p1) / len(prediction)
 
     assert loss.item() == pytest.approx(0.2)
-    assert arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direction,
-                  f_loss=loss_inversely_correlated_box_class_count_scaled).item() == pytest.approx(loss)
+    assert torch.isclose(
+        loss,
+        arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direction,
+               f_loss=loss_inversely_correlated_box_class_count_scaled)
+    )
