@@ -59,6 +59,24 @@ def make_f_loss(kind):
     return fs[kind]
 
 
+def make_apply_concept_similarity(kind, params):
+    from weakvtg.model import apply_concept_similarity_one
+    from weakvtg.model import apply_concept_similarity_product
+    from weakvtg.model import apply_concept_similarity_mean
+
+    fs = {
+        "one": apply_concept_similarity_one,
+        "product": apply_concept_similarity_product,
+        "mean": functools.partial(apply_concept_similarity_mean, **params.get("mean", {}))
+    }
+
+    if kind not in fs:
+        raise ValueError(f"Provided apply concept similarity kind ({kind}) is not supported. Please use one "
+                         f"of {list(fs.keys())}")
+
+    return fs[kind]
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train, validate, test or plot some example with `weakvtg` model.")
 
@@ -83,7 +101,8 @@ def parse_args():
     parser.add_argument("--image-semantic-hidden-layers", type=int, default=None)
     parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
     parser.add_argument("--concept-similarity-activation-threshold", type=float, default=None)
-    parser.add_argument("--use-proportional-concept-similarity", action="store_true", default=None)
+    parser.add_argument("--apply-concept-similarity-strategy", type=str, default=None)
+    parser.add_argument("--concept-similarity-application-weight", type=float, default=None)
     parser.add_argument("--loss", type=str, default=None)
     parser.add_argument("--n-box", type=int, default=None)
     parser.add_argument("--n-epochs", type=int, default=None)
@@ -134,7 +153,8 @@ def main():
         "image_semantic_hidden_layers": args.image_semantic_hidden_layers,
         "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
         "concept_similarity_activation_threshold": args.concept_similarity_activation_threshold,
-        "use_proportional_concept_similarity": args.use_proportional_concept_similarity,
+        "apply_concept_similarity_strategy": args.apply_concept_similarity_strategy,
+        "concept_similarity_application_weight": args.concept_similarity_application_weight,
         "loss": args.loss,
         "n_box": args.n_box,
         "n_epochs": args.n_epochs,
@@ -166,7 +186,8 @@ def main():
     image_semantic_hidden_layers = config["image_semantic_hidden_layers"]
     concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
     concept_similarity_activation_threshold = config["concept_similarity_activation_threshold"]
-    use_proportional_concept_similarity = config["use_proportional_concept_similarity"]
+    apply_concept_similarity_strategy = config["apply_concept_similarity_strategy"]
+    concept_similarity_application_weight = config["concept_similarity_application_weight"]
     loss = config["loss"]
     n_box = config["n_box"]
     n_epochs = config["n_epochs"]
@@ -228,6 +249,9 @@ def main():
                                                                    threshold=concept_similarity_activation_threshold)
     _get_concept_similarity_direction = functools.partial(get_concept_similarity_direction,
                                                           f_activation=_concept_similarity_direction_f_activation)
+    _apply_concept_similarity_params = {"mean": {"lam": concept_similarity_application_weight}}
+    _apply_concept_similarity = make_apply_concept_similarity(apply_concept_similarity_strategy,
+                                                              params=_apply_concept_similarity_params)
 
     # create dataset adapter
     process_fn = functools.partial(process_example, n_boxes_to_keep=n_box, nlp=nlp,
@@ -255,7 +279,7 @@ def main():
         get_phrases_representation=_get_phrases_representation,
         get_concept_similarity=_get_concept_similarity,
         f_similarity=F.cosine_similarity,
-        use_proportional_concept_similarity=use_proportional_concept_similarity
+        apply_concept_similarity=_apply_concept_similarity
     )
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(

@@ -8,7 +8,6 @@ import torch.nn.utils.rnn as rnn
 
 from weakvtg import anchors
 from weakvtg.mask import get_synthetic_mask
-from weakvtg.utils import identity
 
 
 class Model(nn.Module):
@@ -35,7 +34,7 @@ class MockModel(Model):
 class WeakVtgModel(Model):
     def __init__(self, phrases_embedding_net, phrases_recurrent_net, image_embedding_net,
                  get_classes_embedding, get_phrases_embedding, get_phrases_representation, get_concept_similarity,
-                 f_similarity, use_proportional_concept_similarity: bool):
+                 f_similarity, apply_concept_similarity):
         super().__init__()
 
         self.phrases_embedding_net = phrases_embedding_net
@@ -46,7 +45,7 @@ class WeakVtgModel(Model):
         self.get_phrases_embedding = get_phrases_embedding
         self.get_phrases_representation = get_phrases_representation
         self.get_concept_similarity = get_concept_similarity
-        self.use_proportional_concept_similarity = use_proportional_concept_similarity
+        self.apply_concept_similarity = apply_concept_similarity
 
         self.f_similarity = f_similarity
 
@@ -74,6 +73,7 @@ class WeakVtgModel(Model):
                                                   get_phrases_embedding=_get_phrases_embedding,
                                                   get_phrases_representation=self.get_phrases_representation)
         _get_image_representation = functools.partial(get_image_representation, embedding_net=self.image_embedding_net)
+        apply_concept_similarity = self.apply_concept_similarity
 
         _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
 
@@ -107,10 +107,12 @@ class WeakVtgModel(Model):
                 return similarity * logits
             return positive_logits
 
+        # torch.abs(positive_concept_similarity)
+
         positive_concept_similarity = concept_similarity(phrases, phrases_mask, boxes_mask)  # [b, n_ph, n_box]
 
         positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
-        positive_logits = proportional(torch.abs(positive_concept_similarity), positive_logits)
+        positive_logits = apply_concept_similarity(positive_logits, positive_concept_similarity)
         positive_logits = torch.masked_fill(positive_logits, get_synthetic_mask(phrases_mask) == 0, value=-1)
         positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=-1)
 
@@ -223,7 +225,34 @@ def get_phrases_representation(phrases_emb, phrases_length, mask, out_features, 
 
 
 def get_box_class(probability):
+    """
+    Return the argmax on `probability` tensor.
+    """
     return torch.argmax(probability, dim=-1)
+
+
+def apply_concept_similarity_one(logits, *_, **__):
+    """
+    Return
+        logits * 1
+    """
+    return logits
+
+
+def apply_concept_similarity_product(logits, concept_similarity, *_, **__):
+    """
+    Return
+        logits * abs(concept_similarity)
+    """
+    return logits * torch.abs(concept_similarity)
+
+
+def apply_concept_similarity_mean(logits, concept_similarity, *, lam=1., **__):
+    """
+    Return
+        (logits + lam * concept_similarity) / 2
+    """
+    return (logits + lam * concept_similarity) / 2
 
 
 def create_phrases_embedding_network(vocab, pretrained_embeddings, *, embedding_size=300, freeze=False,
