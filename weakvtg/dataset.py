@@ -84,6 +84,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_negative = batch["phrases_negative"]  # [b, n_ph-, n_words-]
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
     phrases_2_crd_index = batch["phrases_2_crd_index"]  # [b, n_ph, 1]
+    noun_phrase = batch["noun_phrase"]  # [b, n_np, n_np_len]
 
     def _get_padded_phrases_2_crd(phrases_2_crd):
         dim = (get_number_examples(phrases_2_crd),
@@ -122,6 +123,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_negative, phrases_mask_negative = get_phrases_tensor(phrases_negative, tokenizer=tokenizer, vocab=vocab)
     phrases_2_crd, _ = _get_padded_phrases_2_crd(phrases_2_crd)
     phrases_2_crd_index, _ = _get_padded_phrases_2_crd_index(phrases_2_crd_index)
+    noun_phrase, noun_phrase_mask = get_phrases_tensor(noun_phrase, tokenizer=tokenizer, vocab=vocab)
 
     return {
         "id": torch.tensor(batch["id"], dtype=torch.long),
@@ -144,6 +146,8 @@ def collate_fn(batch, tokenizer, vocab):
         "phrases_mask_negative": phrases_mask_negative,
         "phrases_2_crd": phrases_2_crd,
         "phrases_2_crd_index": phrases_2_crd_index,
+        "noun_phrase": noun_phrase,
+        "noun_phrase_mask": noun_phrase_mask,
     }
 
 
@@ -152,7 +156,8 @@ def read_index(filename: str):
         return [line.strip("\n") for line in f.readlines()]
 
 
-def process_example(example, *, n_boxes_to_keep: int = 100, n_active_box: int = 3, nlp=None, get_noun_phrases=None):
+def process_example(example, *, f_nlp, f_extract_noun_phrase, n_boxes_to_keep: int = 100, n_active_box: int = 3,
+                    use_replace_phrase_with_noun_phrase: bool = False):
     def pad_boxes():
         """
         Pad boxes and update `example` as a side effect.
@@ -221,19 +226,14 @@ def process_example(example, *, n_boxes_to_keep: int = 100, n_active_box: int = 
 
         example["phrases_2_crd_index"] = best_iou_index.detach().numpy().tolist()
 
-    def noun_phrases():
-        def extract(phrase): return get_noun_phrases(nlp(phrase))
-        def clamp(phrase, noun_phrases): return noun_phrases if len(noun_phrases) > 0 else [phrase]
-        def join(noun_phrases): return " ".join(noun_phrases)
-
+    def noun_phrase():
         phrases = example["phrases"]
+        noun_phrase = get_noun_phrase(phrases, f_nlp=f_nlp, f_extract_noun_phrase=f_extract_noun_phrase)
 
-        noun_phrases = list(map(extract, phrases))
-        noun_phrases = list(map(lambda x: clamp(x[0], x[1]), zip(phrases, noun_phrases)))
-        noun_phrases = list(map(join, noun_phrases))
-        noun_phrases = list(noun_phrases)
+        example["noun_phrase"] = noun_phrase
 
-        example["phrases"] = noun_phrases
+        if use_replace_phrase_with_noun_phrase:
+            example["phrases"] = noun_phrase
 
     def class_count():
         box_class_prob = torch.tensor(example["pred_cls_prob"])
@@ -262,8 +262,7 @@ def process_example(example, *, n_boxes_to_keep: int = 100, n_active_box: int = 
     # requires `remove_background` to compute unbiased frequencies
     class_count()
 
-    if nlp is not None and get_noun_phrases is not None:
-        noun_phrases()
+    noun_phrase()
 
     return example
 
@@ -287,3 +286,16 @@ def get_class_count(box_class, n_class=-1):
     class_one_hot = F.one_hot(box_class, num_classes=n_class)
     class_one_hot = torch.transpose(class_one_hot, dim0=-1, dim1=-2)
     return class_one_hot.sum(dim=-1)
+
+
+def get_noun_phrase(phrases, *, f_extract_noun_phrase, f_nlp):
+    def extract(phrase): return f_extract_noun_phrase(f_nlp(phrase))
+    def clamp(phrase, noun_phrases): return noun_phrases if len(noun_phrases) > 0 else [phrase]
+    def join(noun_phrases): return " ".join(noun_phrases)
+
+    noun_phrases = list(map(extract, phrases))
+    noun_phrases = list(map(lambda x: clamp(x[0], x[1]), zip(phrases, noun_phrases)))
+    noun_phrases = list(map(join, noun_phrases))
+    noun_phrases = list(noun_phrases)
+
+    return noun_phrases

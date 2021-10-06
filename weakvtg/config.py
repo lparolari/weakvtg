@@ -32,6 +32,7 @@ __defaults = {
     "suffix": "default",
     "restore": None,
     "use_spell_correction": False,
+    "use_replace_phrase_with_noun_phrase": False,
 }
 
 

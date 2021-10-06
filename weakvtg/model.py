@@ -50,14 +50,16 @@ class WeakVtgModel(Model):
         self.f_similarity = f_similarity
 
     def forward(self, batch):
-        pred_n_boxes = batch["pred_n_boxes"]  # [b]
-        boxes = batch["pred_boxes"]  # [b, n_boxes, 4]
-        boxes_mask = batch["pred_boxes_mask"]  # [b, n_boxes]
-        boxes_features = batch["pred_boxes_features"]  # [b, n_boxes, 2048]
-        boxes_class_prob = batch["pred_cls_prob"]  # [b, n_boxes, n_class]
-        phrases = batch["phrases"]  # [b, n_ph+, n_words+]
-        phrases_mask = batch["phrases_mask"]  # [b, n_ph+, n_words+]
-        phrases_negative = batch["phrases_negative"]  # [b, n_ph-, n_words-]
+        pred_n_boxes = batch["pred_n_boxes"]                    # [b]
+        boxes = batch["pred_boxes"]                             # [b, n_boxes, 4]
+        boxes_mask = batch["pred_boxes_mask"]                   # [b, n_boxes]
+        boxes_features = batch["pred_boxes_features"]           # [b, n_boxes, 2048]
+        boxes_class_prob = batch["pred_cls_prob"]               # [b, n_boxes, n_class]
+        phrases = batch["phrases"]                              # [b, n_ph+, n_words+]
+        phrases_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
+        noun_phrase = batch["noun_phrase"]                      # [b, n_np, n_np_len]
+        noun_phrase_mask = batch["noun_phrase_mask"]            # [b, n_np, n_np_len]
+        phrases_negative = batch["phrases_negative"]            # [b, n_ph-, n_words-]
         phrases_mask_negative = batch["phrases_mask_negative"]  # [b, n_ph-, n_words-]
 
         box_class = get_box_class(boxes_class_prob)  # [b, n_boxes]
@@ -107,9 +109,7 @@ class WeakVtgModel(Model):
                 return similarity * logits
             return positive_logits
 
-        # torch.abs(positive_concept_similarity)
-
-        positive_concept_similarity = concept_similarity(phrases, phrases_mask, boxes_mask)  # [b, n_ph, n_box]
+        positive_concept_similarity = concept_similarity(noun_phrase, noun_phrase_mask, boxes_mask)  # [b, n_ph, n_box]
 
         positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
         positive_logits = apply_concept_similarity(positive_logits, positive_concept_similarity)

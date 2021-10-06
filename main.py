@@ -111,6 +111,7 @@ def parse_args():
     parser.add_argument("--suffix", type=str, default=None)
     parser.add_argument("--restore", type=str, default=None)
     parser.add_argument("--use-spell-correction", action="store_true", default=None)
+    parser.add_argument("--use-replace-phrase-with-noun-phrase", action="store_true", default=None)
 
     parser.add_argument("--workflow", type=str, choices=["train", "valid", "test", "test-example", "classes-frequency",
                                                          "concepts-frequency"],
@@ -163,6 +164,7 @@ def main():
         "suffix": args.suffix,
         "restore": args.restore,
         "use_spell_correction": args.use_spell_correction,
+        "use_replace_phrase_with_noun_phrase": args.use_replace_phrase_with_noun_phrase
     })
 
     batch_size = config["batch_size"]
@@ -196,6 +198,7 @@ def main():
     suffix = config["suffix"]
     restore = config["restore"]
     use_spell_correction = config["use_spell_correction"]
+    use_replace_phrase_with_noun_phrase = config["use_replace_phrase_with_noun_phrase"]
 
     device = torch.device(device_name)
 
@@ -254,8 +257,9 @@ def main():
                                                               params=_apply_concept_similarity_params)
 
     # create dataset adapter
-    process_fn = functools.partial(process_example, n_boxes_to_keep=n_box, nlp=nlp,
-                                   get_noun_phrases=functools.partial(get_noun_phrases, f_chunking=root_chunk_iter))
+    f_get_noun_phrase = functools.partial(get_noun_phrases, f_chunking=root_chunk_iter)
+    process_fn = functools.partial(process_example, n_boxes_to_keep=n_box, f_extract_noun_phrase=f_get_noun_phrase,
+                                   f_nlp=nlp, use_replace_phrase_with_noun_phrase=use_replace_phrase_with_noun_phrase)
 
     train_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=train_idx_filepath, process_fn=process_fn)
     valid_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=valid_idx_filepath, process_fn=process_fn)
