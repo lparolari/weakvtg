@@ -2,18 +2,21 @@ import torch
 import torch.nn as nn
 
 from weakvtg import anchors
-from weakvtg.bbox import get_boxes_class
+from weakvtg.bbox import get_boxes_class, get_union_box
 from weakvtg.mask import get_synthetic_mask
+from weakvtg.utils import expand
 
 
 class WeakVtgLoss(nn.Module):
-    def __init__(self, get_concept_similarity_direction, f_loss):
+    def __init__(self, get_concept_similarity_direction, get_predicted_box, f_loss):
         super().__init__()
         self.get_concept_similarity_direction = get_concept_similarity_direction
+        self.get_predicted_box = get_predicted_box
         self.f_loss = f_loss
 
     def forward(self, batch, output):
         get_concept_similarity_direction = self.get_concept_similarity_direction
+        get_predicted_box = self.get_predicted_box
         f_loss = self.f_loss
 
         boxes = batch["pred_boxes"]
@@ -47,7 +50,8 @@ class WeakVtgLoss(nn.Module):
 
         def get_validation(boxes, boxes_gt, scores, mask):
             with torch.no_grad():
-                boxes_pred = get_boxes_predicted(boxes, scores, mask)
+                boxes_pred = get_predicted_box(scores, boxes, boxes_class)
+                boxes_pred = torch.masked_fill(boxes_pred, mask=mask == 0, value=0)
 
                 iou_scores = get_iou_scores(boxes_pred, boxes_gt, mask)
 
@@ -176,22 +180,52 @@ def get_iou_scores(boxes, gt, mask):
     return iou_scores
 
 
-def get_boxes_predicted(boxes, scores, mask):
+def get_predicted_box_by_max(score, box, *_, **__):
     """
     Extract best bounding boxes from object detector boxes based on given scores.
 
-    :param boxes: A [b, n_boxes, 4] tensor with bounding boxes from object detector
-    :param scores: A [b, n_chunks, n_boxes] tensor with bounding box scores for each chunk
-    :param mask: A [b, n_chunks, 1] long tensor which represent synthetic chunks
-    :return: A [b, n_chunks, 4] tensor with best bounding box for each chunk
+    :param score: A [d*, d1, d2] tensor
+    :param box: A [d*, d2, 4] tensor
+    :return: A [d*, d1, 4] tensor with best bounding box for each chunk
     """
-    indexes = torch.argmax(scores, dim=-1)                  # [b, n_chunks]
-    indexes = indexes.unsqueeze(-1).repeat(1, 1, 4).long()  # [b, n_chunks, 4]
+    index = torch.argmax(score, dim=-1)                 # [*, d1]
+    index = expand(index, dim=-1, size=box.size()[-1])  # [*, d1, 4]
 
-    boxes = torch.gather(boxes, dim=-2, index=indexes)       # [b, n_chunks, 4]
-    boxes = torch.masked_fill(boxes, mask == 0, value=0)
+    boxes = torch.gather(box, dim=-2, index=index)      # [*, d1, 4]
 
     return boxes
+
+
+def get_predicted_box_by_union_on_max_class(score, box, box_class, *_, **__):
+    """
+    Return the union box among all boxes with the same class as the most confident box per phrase.
+
+    :param score: A [*, d1, d2] tensor
+    :param box: A [*, d2, 4] tensor
+    :param box_class: A [*, d2] long tensor
+    :return: A [*, d1, 4] tensor
+    """
+    n_ph = score.size()[-2]
+
+    box_full = expand(box, dim=-3, size=n_ph)              # [*, d1, d2, 4]
+    box_class_full = expand(box_class, dim=-2, size=n_ph)  # [*, d1, d2]
+
+    best_score_index = torch.argmax(score, dim=-1).unsqueeze(-1)                   # [*, d1, 1]
+    best_box_class = torch.gather(box_class_full, dim=-1, index=best_score_index)  # [*, d1, 1]
+
+    box_class_mask = (box_class_full == best_box_class).unsqueeze(-1)  # [*, d1, d2, 1]
+
+    # Please note that the following is not possible because the
+    # resulting tensor size depends on the number of positive values
+    # in `box_class_mask` which can be different for every per
+    # phrase. For this reason the result contains all valid bounding
+    # box without distinguishing between phrases, which is not what
+    # we want.
+    #
+    # box_given_max_class = box_full[box_class_mask.nonzero(as_tuple=True)]
+    # return get_union_box(box_given_max_class)
+
+    return get_union_box(box_full, mask_min=box_class_mask, mask_max=box_class_mask)  # [*, d1, 4]
 
 
 def get_accuracy(iou_scores, mask):

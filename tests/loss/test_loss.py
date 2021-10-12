@@ -65,16 +65,6 @@ def test_get_pointing_game_accuracy(boxes1, boxes2, mask):
     assert losses.get_pointing_game_accuracy(boxes1, boxes2, mask).item() == torch.Tensor([2 / 3]).item()
 
 
-def test_get_boxes_predicted(boxes, boxes_scores):
-    # If scores are > 0 then corresponding value in mask should be 1 by definition.
-    mask = torch.tensor([[[1]]])  # [b, n_chunks, 1]
-
-    expected = torch.tensor([[boxes[0][1].numpy()]])
-    predicted = losses.get_boxes_predicted(boxes, boxes_scores, mask)
-
-    assert torch.equal(expected, predicted)
-
-
 def test_filter_scores():
     scores = torch.tensor([[[-.56, .77, .12], [.89, -.45, -.16]], [[.12, -.05, 0.10], [-.47, .32, -.84]]])
     mask = torch.tensor([[[True], [True]], [[True], [False]]])
