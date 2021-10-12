@@ -77,6 +77,7 @@ class WeakVtgModel(Model):
         _get_image_representation = functools.partial(get_image_representation, embedding_net=self.image_embedding_net)
         apply_concept_similarity = self.apply_concept_similarity
 
+        _phrases_mask = get_synthetic_mask(phrases_mask)
         _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
 
         # extract positive/negative features
@@ -113,7 +114,7 @@ class WeakVtgModel(Model):
 
         positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
         positive_logits = apply_concept_similarity(positive_logits, positive_concept_similarity)
-        positive_logits = torch.masked_fill(positive_logits, get_synthetic_mask(phrases_mask) == 0, value=-1)
+        positive_logits = torch.masked_fill(positive_logits, _phrases_mask == 0, value=-1)
         positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=-1)
 
         return (positive_logits, torch.zeros_like(positive_logits)), \
