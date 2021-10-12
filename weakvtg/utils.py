@@ -44,3 +44,12 @@ def map_dict(d, *, key_fn=None, value_fn=None):
         dd = {**dd, **{key_fn(k): value_fn(v)}}
 
     return dd
+
+
+def expand(x, dim, size):
+    x = x.unsqueeze(dim)
+
+    dims = [1] * x.dim()
+    dims[dim] = size
+
+    return x.repeat(*dims)

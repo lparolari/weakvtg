@@ -1,4 +1,4 @@
-from weakvtg.utils import get_batch_size, percent, pivot, identity, map_dict
+from weakvtg.utils import get_batch_size, percent, pivot, identity, map_dict, expand
 
 
 def test_get_batch_size():
@@ -29,3 +29,13 @@ def test_map_dict():
 
     assert map_dict(d) == d
     assert map_dict(d, key_fn=k_fn, value_fn=v_fn) == {"awesome_foo": 2, "awesome_bar": 1.15}
+
+
+def test_expand():
+    import torch
+
+    x = torch.tensor([1, 2, 3])
+    dim = -2
+    size = 2
+
+    assert torch.equal(expand(x, dim, size), x.unsqueeze(-2).repeat(2, 1))
