@@ -9,7 +9,6 @@ import wandb
 
 from weakvtg import iox
 from weakvtg.classes import get_class
-from weakvtg.loss import get_boxes_predicted
 from weakvtg.mask import get_synthetic_mask
 from weakvtg.prettyprint import pp
 from weakvtg.timeit import get_fancy_eta, get_fancy_time, get_hms, get_delta
@@ -253,7 +252,8 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
         score_positive, score_negative = output[0]
         concept_similarity_positive, *_ = output[1]
 
-        boxes_pred = get_boxes_predicted(boxes, score_positive, phrases_synthetic)
+        boxes_pred = criterion.get_predicted_box(score_positive, boxes, classes_pred)
+        boxes_pred = torch.masked_fill(phrases_synthetic, mask=phrases_synthetic == 0, value=0)
 
         scores_topk, scores_topk_index = torch.topk(score_positive, k=1)
 

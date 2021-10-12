@@ -33,6 +33,7 @@ __defaults = {
     "restore": None,
     "use_spell_correction": False,
     "use_replace_phrase_with_noun_phrase": False,
+    "localization_strategy": "max",
 }
 
 

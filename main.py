@@ -15,7 +15,7 @@ from weakvtg.config import get_config
 from weakvtg.classes import get_classes, load_classes
 from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss, loss_inversely_correlated, loss_inversely_correlated_box_class_count_scaled, \
-    loss_orthogonal
+    loss_orthogonal, get_predicted_box_by_max, get_predicted_box_by_union_on_max_class
 from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
     get_phrases_representation, get_phrases_embedding
@@ -77,6 +77,19 @@ def make_apply_concept_similarity(kind, params):
     return fs[kind]
 
 
+def make_localization_strategy(kind):
+    fs = {
+        "max": get_predicted_box_by_max,
+        "union_max_class": get_predicted_box_by_union_on_max_class,
+    }
+
+    if kind not in fs:
+        raise ValueError(f"Provided localization strategy ({kind}) is not supported. Please use one "
+                         f"of {list(fs.keys())}")
+
+    return fs[kind]
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train, validate, test or plot some example with `weakvtg` model.")
 
@@ -112,6 +125,7 @@ def parse_args():
     parser.add_argument("--restore", type=str, default=None)
     parser.add_argument("--use-spell-correction", action="store_true", default=None)
     parser.add_argument("--use-replace-phrase-with-noun-phrase", action="store_true", default=None)
+    parser.add_argument("--localization-strategy", type=str, default=None)
 
     parser.add_argument("--workflow", type=str, choices=["train", "valid", "test", "test-example", "classes-frequency",
                                                          "concepts-frequency"],
@@ -164,7 +178,8 @@ def main():
         "suffix": args.suffix,
         "restore": args.restore,
         "use_spell_correction": args.use_spell_correction,
-        "use_replace_phrase_with_noun_phrase": args.use_replace_phrase_with_noun_phrase
+        "use_replace_phrase_with_noun_phrase": args.use_replace_phrase_with_noun_phrase,
+        "localization_strategy": args.localization_strategy
     })
 
     batch_size = config["batch_size"]
@@ -199,6 +214,7 @@ def main():
     restore = config["restore"]
     use_spell_correction = config["use_spell_correction"]
     use_replace_phrase_with_noun_phrase = config["use_replace_phrase_with_noun_phrase"]
+    localization_strategy = config["localization_strategy"]
 
     device = torch.device(device_name)
 
@@ -252,6 +268,7 @@ def main():
                                                                    threshold=concept_similarity_activation_threshold)
     _get_concept_similarity_direction = functools.partial(get_concept_similarity_direction,
                                                           f_activation=_concept_similarity_direction_f_activation)
+    _get_predicted_box = make_localization_strategy(localization_strategy)
     _apply_concept_similarity_params = {"mean": {"lam": concept_similarity_application_weight}}
     _apply_concept_similarity = make_apply_concept_similarity(apply_concept_similarity_strategy,
                                                               params=_apply_concept_similarity_params)
@@ -288,6 +305,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(
         get_concept_similarity_direction=_get_concept_similarity_direction,
+        get_predicted_box=_get_predicted_box,
         f_loss=make_f_loss(loss)
     )
 
