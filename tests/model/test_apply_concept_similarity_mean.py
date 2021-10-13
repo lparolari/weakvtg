@@ -19,5 +19,5 @@ def test_apply_concept_similarity_mean_given_weight():
 
     assert torch.equal(
         apply_concept_similarity_mean(logits, concept_similarity, lam=0.2),
-        (logits + 0.2 * concept_similarity) / 2
+        0.2 * logits + (1 - 0.2) * concept_similarity
     )

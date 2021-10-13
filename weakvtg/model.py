@@ -248,12 +248,12 @@ def apply_concept_similarity_product(logits, concept_similarity, *_, **__):
     return logits * torch.abs(concept_similarity)
 
 
-def apply_concept_similarity_mean(logits, concept_similarity, *, lam=1., **__):
+def apply_concept_similarity_mean(logits, concept_similarity, *, lam=.5, **__):
     """
     Return
-        (logits + lam * concept_similarity) / 2
+        lam * logits + (1 - lam) * concept_similarity
     """
-    return (logits + lam * concept_similarity) / 2
+    return lam * logits + (1 - lam) * concept_similarity
 
 
 def create_phrases_embedding_network(vocab, pretrained_embeddings, *, embedding_size=300, freeze=False,

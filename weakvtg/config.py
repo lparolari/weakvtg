@@ -23,7 +23,7 @@ __defaults = {
     "concept_similarity_aggregation_strategy": "mean",
     "concept_similarity_activation_threshold": 0.,
     "apply_concept_similarity_strategy": "one",
-    "concept_similarity_application_weight": 1.,
+    "loss_lambda": 0.5,
     "loss": "inversely_correlated",
     "n_box": 100,
     "n_epochs": 15,

@@ -115,7 +115,7 @@ def parse_args():
     parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
     parser.add_argument("--concept-similarity-activation-threshold", type=float, default=None)
     parser.add_argument("--apply-concept-similarity-strategy", type=str, default=None)
-    parser.add_argument("--concept-similarity-application-weight", type=float, default=None)
+    parser.add_argument("--loss-lambda", type=float, default=None)
     parser.add_argument("--loss", type=str, default=None)
     parser.add_argument("--n-box", type=int, default=None)
     parser.add_argument("--n-epochs", type=int, default=None)
@@ -169,7 +169,7 @@ def main():
         "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
         "concept_similarity_activation_threshold": args.concept_similarity_activation_threshold,
         "apply_concept_similarity_strategy": args.apply_concept_similarity_strategy,
-        "concept_similarity_application_weight": args.concept_similarity_application_weight,
+        "loss_lambda": args.loss_lambda,
         "loss": args.loss,
         "n_box": args.n_box,
         "n_epochs": args.n_epochs,
@@ -204,7 +204,7 @@ def main():
     concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
     concept_similarity_activation_threshold = config["concept_similarity_activation_threshold"]
     apply_concept_similarity_strategy = config["apply_concept_similarity_strategy"]
-    concept_similarity_application_weight = config["concept_similarity_application_weight"]
+    loss_lambda = config["loss_lambda"]
     loss = config["loss"]
     n_box = config["n_box"]
     n_epochs = config["n_epochs"]
@@ -269,7 +269,7 @@ def main():
     _get_concept_similarity_direction = functools.partial(get_concept_similarity_direction,
                                                           f_activation=_concept_similarity_direction_f_activation)
     _get_predicted_box = make_localization_strategy(localization_strategy)
-    _apply_concept_similarity_params = {"mean": {"lam": concept_similarity_application_weight}}
+    _apply_concept_similarity_params = {"mean": {"lam": loss_lambda}}
     _apply_concept_similarity = make_apply_concept_similarity(apply_concept_similarity_strategy,
                                                               params=_apply_concept_similarity_params)
 
