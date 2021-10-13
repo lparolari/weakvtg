@@ -20,6 +20,7 @@ __defaults = {
     "image_embedding_size": 2053,
     "image_semantic_size": 500,
     "image_semantic_hidden_layers": 2,
+    "image_projection_net": "mlp",
     "concept_similarity_aggregation_strategy": "mean",
     "concept_similarity_activation_threshold": 0.,
     "apply_concept_similarity_strategy": "one",

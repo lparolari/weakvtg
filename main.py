@@ -92,6 +92,19 @@ def make_localization_strategy(kind):
     return fs[kind]
 
 
+def make_image_projection_net(kind):
+    fs = {
+        "none": torch.nn.Identity,
+        "mlp": create_image_embedding_network,
+    }
+
+    if kind not in fs:
+        raise ValueError(f"Provided image projection network ({kind}) is not supported. Please use one "
+                         f"of {list(fs.keys())}")
+
+    return fs[kind]
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train, validate, test or plot some example with `weakvtg` model.")
 
@@ -112,6 +125,7 @@ def parse_args():
     parser.add_argument("--text-semantic-num-layers", type=int, default=None)
     parser.add_argument("--text-recurrent-network-type", type=str, default=None)
     parser.add_argument("--image-embedding-size", type=int, default=None)
+    parser.add_argument("--image-projection-net", type=str, default=None)
     parser.add_argument("--image-semantic-size", type=int, default=None)
     parser.add_argument("--image-semantic-hidden-layers", type=int, default=None)
     parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
@@ -166,6 +180,7 @@ def main():
         "text_semantic_num_layers": args.text_semantic_num_layers,
         "text_recurrent_network_type": args.text_recurrent_network_type,
         "image_embedding_size": args.image_embedding_size,
+        "image_projection_net": args.image_projection_net,
         "image_semantic_size": args.image_semantic_size,
         "image_semantic_hidden_layers": args.image_semantic_hidden_layers,
         "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
@@ -201,6 +216,7 @@ def main():
     text_semantic_num_layers = config["text_semantic_num_layers"]
     text_recurrent_network_type = config["text_recurrent_network_type"]
     image_embedding_size = config["image_embedding_size"]
+    image_projection_net = config["image_projection_net"]
     image_semantic_size = config["image_semantic_size"]
     image_semantic_hidden_layers = config["image_semantic_hidden_layers"]
     concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
@@ -254,8 +270,9 @@ def main():
                                                     batch_first=False)
     phrases_recurrent_net = init_rnn(phrases_recurrent_net)
 
-    image_embedding_net = create_image_embedding_network(image_embedding_size, image_semantic_size,
-                                                         n_hidden_layer=image_semantic_hidden_layers)
+    f_image_projection_net = make_image_projection_net(image_projection_net)
+    image_embedding_net = f_image_projection_net(image_embedding_size, image_semantic_size,
+                                                 n_hidden_layer=image_semantic_hidden_layers)
 
     _get_classes_embedding = functools.partial(get_phrases_embedding, embedding_network=classes_embedding_net)
     _get_phrases_embedding = functools.partial(get_phrases_embedding, embedding_network=phrases_embedding_net)
