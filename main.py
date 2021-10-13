@@ -126,8 +126,8 @@ def parse_args():
     parser.add_argument("--text-recurrent-network-type", type=str, default=None)
     parser.add_argument("--image-embedding-size", type=int, default=None)
     parser.add_argument("--image-projection-net", type=str, default=None)
-    parser.add_argument("--image-semantic-size", type=int, default=None)
-    parser.add_argument("--image-semantic-hidden-layers", type=int, default=None)
+    parser.add_argument("--image-projection-size", type=int, default=None)
+    parser.add_argument("--image-projection-hidden-layers", type=int, default=None)
     parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
     parser.add_argument("--concept-similarity-activation-threshold", type=float, default=None)
     parser.add_argument("--apply-concept-similarity-strategy", type=str, default=None)
@@ -181,8 +181,8 @@ def main():
         "text_recurrent_network_type": args.text_recurrent_network_type,
         "image_embedding_size": args.image_embedding_size,
         "image_projection_net": args.image_projection_net,
-        "image_semantic_size": args.image_semantic_size,
-        "image_semantic_hidden_layers": args.image_semantic_hidden_layers,
+        "image_projection_size": args.image_projection_size,
+        "image_projection_hidden_layers": args.image_projection_hidden_layers,
         "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
         "concept_similarity_activation_threshold": args.concept_similarity_activation_threshold,
         "apply_concept_similarity_strategy": args.apply_concept_similarity_strategy,
@@ -217,8 +217,8 @@ def main():
     text_recurrent_network_type = config["text_recurrent_network_type"]
     image_embedding_size = config["image_embedding_size"]
     image_projection_net = config["image_projection_net"]
-    image_semantic_size = config["image_semantic_size"]
-    image_semantic_hidden_layers = config["image_semantic_hidden_layers"]
+    image_projection_size = config["image_projection_size"]
+    image_projection_hidden_layers = config["image_projection_hidden_layers"]
     concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
     concept_similarity_activation_threshold = config["concept_similarity_activation_threshold"]
     apply_concept_similarity_strategy = config["apply_concept_similarity_strategy"]
@@ -236,9 +236,9 @@ def main():
 
     device = torch.device(device_name)
 
-    assert text_semantic_size == image_semantic_size, f"Text and image semantic size must be equal because of " \
-                                                      f"similarity measure, but {text_semantic_size} != " \
-                                                      f"{image_semantic_size}"
+    assert text_semantic_size == image_projection_size, f"Text and image semantic size must be equal because of " \
+                                                        f"similarity measure, but {text_semantic_size} != " \
+                                                        f"{image_projection_size}"
 
     wandb.init(project='weakvtg', entity='vtkel-solver', mode="online" if args.use_wandb else "disabled")
     wandb.config.update(config)
@@ -271,8 +271,8 @@ def main():
     phrases_recurrent_net = init_rnn(phrases_recurrent_net)
 
     f_image_projection_net = make_image_projection_net(image_projection_net)
-    image_embedding_net = f_image_projection_net(image_embedding_size, image_semantic_size,
-                                                 n_hidden_layer=image_semantic_hidden_layers)
+    image_embedding_net = f_image_projection_net(image_embedding_size, image_projection_size,
+                                                 n_hidden_layer=image_projection_hidden_layers)
 
     _get_classes_embedding = functools.partial(get_phrases_embedding, embedding_network=classes_embedding_net)
     _get_phrases_embedding = functools.partial(get_phrases_embedding, embedding_network=phrases_embedding_net)
