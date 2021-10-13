@@ -236,10 +236,6 @@ def main():
 
     device = torch.device(device_name)
 
-    assert text_semantic_size == image_projection_size, f"Text and image semantic size must be equal because of " \
-                                                        f"similarity measure, but {text_semantic_size} != " \
-                                                        f"{image_projection_size}"
-
     wandb.init(project='weakvtg', entity='vtkel-solver', mode="online" if args.use_wandb else "disabled")
     wandb.config.update(config)
 
