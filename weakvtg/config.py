@@ -1,4 +1,6 @@
+import functools
 import tempfile
+from typing import Any, Dict, Optional
 
 __defaults = {
     "batch_size": 64,
@@ -52,3 +54,17 @@ def get_config(config, defaults=None):
     new_config.update(config)
 
     return new_config
+
+
+def make_options(name: str, options: Dict[str, Any]):
+    def get_option(option: str, *, params: Optional[Dict[str, Any]] = None):
+        if option not in options:
+            raise ValueError(f"Provided option for {name} ({option}) is not supported. Please use one "
+                             f"of {list(options.keys())}")
+
+        if params is None:
+            return options[option]
+
+        return functools.partial(options[option], **params.get(option, {}))
+
+    return get_option

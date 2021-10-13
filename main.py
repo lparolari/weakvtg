@@ -11,7 +11,7 @@ import torch.utils.data as torchdata
 import torchtext
 import wandb
 
-from weakvtg.config import get_config
+from weakvtg.config import get_config, make_options
 from weakvtg.classes import get_classes, load_classes
 from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss, loss_inversely_correlated, loss_inversely_correlated_box_class_count_scaled, \
@@ -20,6 +20,9 @@ from weakvtg.loss import WeakVtgLoss, loss_inversely_correlated, loss_inversely_
 from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
     get_phrases_representation, get_phrases_embedding
+from weakvtg.model import apply_concept_similarity_one
+from weakvtg.model import apply_concept_similarity_product
+from weakvtg.model import apply_concept_similarity_mean
 from weakvtg.concept import get_concept_similarity, aggregate_words_by_max, aggregate_words_by_mean, binary_threshold, \
     get_concept_similarity_direction
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp, get_noun_phrases, root_chunk_iter
@@ -27,82 +30,29 @@ from weakvtg.train import train, load_model, test_example, test, classes_frequen
 from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list, get_word_embedding
 
 
-def make_phrases_recurrent(rnn_type):
-    assert rnn_type in ["lstm", "rnn"], f"The RNN type '{rnn_type}' you provided is not supported. Please use 'rnn' " \
-                                        f"or 'lstm'."
-
-    if rnn_type == "lstm":
-        return nn.LSTM
-    if rnn_type == "rnn":
-        return nn.RNN
-
-
-def make_concept_similarity_f_aggregate(kind):
-    fs = {"max": aggregate_words_by_max, "mean": aggregate_words_by_mean}
-
-    if kind not in fs:
-        raise ValueError(f"Provided concept similarity aggregation strategy ({kind}) is not supported. Please use "
-                         f"one of {list(fs.keys())}")
-
-    return fs[kind]
-
-
-def make_f_loss(kind):
-    fs = {
+make_phrases_recurrent = make_options("RNN type", options={"lstm": nn.LSTM, "rnn": nn.RNN})
+make_concept_similarity_f_aggregate = make_options("concept similarity aggregation strategy",
+                                                   options={"max": aggregate_words_by_max,
+                                                            "mean": aggregate_words_by_mean})
+make_f_loss = make_options("loss", options={
         "inversely_correlated": loss_inversely_correlated,
         "inversely_correlated_box_class_count_scaled": loss_inversely_correlated_box_class_count_scaled,
         "orthogonal": loss_orthogonal,
         "orthogonal_box_class_count_scaled": loss_orthogonal_box_class_count_scaled,
-    }
-
-    if kind not in fs:
-        raise ValueError(f"Provided loss kind ({kind}) is not supported. Please use one of {list(fs.keys())}")
-
-    return fs[kind]
-
-
-def make_apply_concept_similarity(kind, params):
-    from weakvtg.model import apply_concept_similarity_one
-    from weakvtg.model import apply_concept_similarity_product
-    from weakvtg.model import apply_concept_similarity_mean
-
-    fs = {
+    })
+make_apply_concept_similarity = make_options("apply concept similarity strategy", options={
         "one": apply_concept_similarity_one,
         "product": apply_concept_similarity_product,
-        "mean": functools.partial(apply_concept_similarity_mean, **params.get("mean", {}))
-    }
-
-    if kind not in fs:
-        raise ValueError(f"Provided apply concept similarity kind ({kind}) is not supported. Please use one "
-                         f"of {list(fs.keys())}")
-
-    return fs[kind]
-
-
-def make_localization_strategy(kind):
-    fs = {
+        "mean": apply_concept_similarity_mean
+    })
+make_localization_strategy = make_options("localization strategy", options={
         "max": get_predicted_box_by_max,
         "union_max_class": get_predicted_box_by_union_on_max_class,
-    }
-
-    if kind not in fs:
-        raise ValueError(f"Provided localization strategy ({kind}) is not supported. Please use one "
-                         f"of {list(fs.keys())}")
-
-    return fs[kind]
-
-
-def make_image_projection_net(kind):
-    fs = {
+    })
+make_image_projection_net = make_options("image projection net", options={
         "none": torch.nn.Identity,
         "mlp": create_image_embedding_network,
-    }
-
-    if kind not in fs:
-        raise ValueError(f"Provided image projection network ({kind}) is not supported. Please use one "
-                         f"of {list(fs.keys())}")
-
-    return fs[kind]
+    })
 
 
 def parse_args():
@@ -260,7 +210,7 @@ def main():
     classes_embedding_net = create_phrases_embedding_network(classes_vocab, word_embedding,
                                                              embedding_size=text_embedding_size, freeze=True)
 
-    phrases_recurrent_layer = make_phrases_recurrent(rnn_type=text_recurrent_network_type)
+    phrases_recurrent_layer = make_phrases_recurrent(text_recurrent_network_type)
     phrases_recurrent_net = phrases_recurrent_layer(text_embedding_size, text_semantic_size,
                                                     num_layers=text_semantic_num_layers, bidirectional=False,
                                                     batch_first=False)
