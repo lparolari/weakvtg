@@ -165,6 +165,32 @@ def loss_orthogonal(X, y):
     return -1 * x_pos + torch.square(x_neg)
 
 
+def loss_orthogonal_box_class_count_scaled(X, y):
+    """
+    Return
+         -1 * (x_pos / count_pos) + x_neg^2 / count_neg
+       = -1 * x_pos * freq_pos + x_neg^2 * freq_neg
+    where
+        x_pos = X[0] (i.e., predictions) where negative values are zero
+        x_neg = X[0] (i.e., predictions) where positive values are zero
+        count_pos = X[1] (i.e., counts) where negative values are zero
+        count_neg = X[1] (i.e., counts) where positive values are zero
+    """
+    eps = 1e-08
+
+    x, box_class_count, *_ = X
+
+    mask_pos = y == 1
+
+    x_pos = torch.masked_fill(x, mask=mask_pos == 0, value=0)
+    x_neg = torch.masked_fill(x, mask=mask_pos == 1, value=0)
+
+    count_pos = torch.masked_fill(box_class_count, mask=mask_pos == 0, value=0) + eps
+    count_neg = torch.masked_fill(box_class_count, mask=mask_pos == 1, value=0) + eps
+
+    return -1 * (x_pos / count_pos) + torch.square(x_neg) / count_neg
+
+
 def get_iou_scores(boxes, gt, mask):
     """
     Compute and return IoU scores between two tensor of bounding boxes, and mask them with `mask`.

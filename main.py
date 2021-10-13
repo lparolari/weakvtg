@@ -15,7 +15,8 @@ from weakvtg.config import get_config
 from weakvtg.classes import get_classes, load_classes
 from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss, loss_inversely_correlated, loss_inversely_correlated_box_class_count_scaled, \
-    loss_orthogonal, get_predicted_box_by_max, get_predicted_box_by_union_on_max_class
+    loss_orthogonal, get_predicted_box_by_max, get_predicted_box_by_union_on_max_class, \
+    loss_orthogonal_box_class_count_scaled
 from weakvtg.math import get_argmax, get_max
 from weakvtg.model import WeakVtgModel, create_phrases_embedding_network, create_image_embedding_network, init_rnn, \
     get_phrases_representation, get_phrases_embedding
@@ -50,7 +51,8 @@ def make_f_loss(kind):
     fs = {
         "inversely_correlated": loss_inversely_correlated,
         "inversely_correlated_box_class_count_scaled": loss_inversely_correlated_box_class_count_scaled,
-        "orthogonal": loss_orthogonal
+        "orthogonal": loss_orthogonal,
+        "orthogonal_box_class_count_scaled": loss_orthogonal_box_class_count_scaled,
     }
 
     if kind not in fs:
