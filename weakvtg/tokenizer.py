@@ -5,7 +5,9 @@ import spacy
 
 Doc = spacy.language.Doc
 Span = Any  # spacy does not export Span type
-ChunkingF = Optional[Callable[[Doc], Iterator[Span]]]
+Iter = Optional[Callable[[Doc], Iterator[Span]]]
+ChunkingF = Iter
+AdjectiveF = Iter
 
 
 def _spacy_nlp():
@@ -37,14 +39,15 @@ def get_torchtext_tokenizer_adapter(nlp):
     return partial(_spacy_tokenize, spacy=nlp)
 
 
-def get_noun_phrases(doc: Doc, f_chunking: ChunkingF = None) -> List[str]:
-    if f_chunking is None:
-        f_chunking = noun_chunk_iter
+def collect_text(doc: Doc, it: Iter) -> List[str]:
+    xs = list(it(doc))
+    xs = list(map(get_text, xs))
 
-    np = list(f_chunking(doc))
-    np = list(map(get_text, np))
+    return xs
 
-    return np
+
+def get_noun_phrases(doc: Doc, f_chunking: ChunkingF) -> List[str]:
+    return collect_text(doc, f_chunking)
 
 
 def noun_chunk_iter(doc: Doc) -> Iterator[Span]:
