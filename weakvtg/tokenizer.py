@@ -50,6 +50,10 @@ def get_noun_phrases(doc: Doc, f_chunking: ChunkingF) -> List[str]:
     return collect_text(doc, f_chunking)
 
 
+def get_adjectives(doc: Doc, f_adjective: AdjectiveF) -> List[str]:
+    return collect_text(doc, f_adjective)
+
+
 def noun_chunk_iter(doc: Doc) -> Iterator[Span]:
     return doc.noun_chunks
 
@@ -57,6 +61,13 @@ def noun_chunk_iter(doc: Doc) -> Iterator[Span]:
 def root_chunk_iter(doc: Doc) -> Iterator[Span]:
     for chunk in noun_chunk_iter(doc):
         yield chunk.root
+
+
+def adj_iter(doc: Doc) -> Iterator[Span]:
+    for chunk in noun_chunk_iter(doc):
+        for tok in chunk:
+            if tok.pos_ == "ADJ":
+                yield tok
 
 
 def get_text(doc: Doc) -> str:
