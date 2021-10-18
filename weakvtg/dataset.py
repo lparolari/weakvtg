@@ -203,7 +203,7 @@ def process_example(example, *, f_nlp, f_extract_noun_phrase, f_extract_adjectiv
         boxes_mask = torch.tensor(example["pred_boxes_mask"])
         boxes_class = get_boxes_class(torch.tensor(example["pred_cls_prob"]))
 
-        example["pred_boxes_mask"] = get_boxes_mask_no_background(boxes_mask, boxes_class).detach().tolist()
+        example["pred_boxes_mask"] = get_mask_without_background(boxes_mask, boxes_class).detach().tolist()
 
     def gt_box_index():
         # Please note that this process should be moved in the make dataset workflow, i.e., the input file should
@@ -280,9 +280,16 @@ def process_example(example, *, f_nlp, f_extract_noun_phrase, f_extract_adjectiv
     return example
 
 
-def get_boxes_mask_no_background(boxes_mask, boxes_class, background_class_index=0):
-    is_not_background = boxes_class != background_class_index
-    return torch.logical_and(boxes_mask, is_not_background)
+def get_mask_without_background(mask, label, background=0):
+    """
+    Return given mask with `False` where `label == background`.
+
+    :param mask: A [*, d] bool tensor
+    :param label: A [*, d] tensor
+    :param background: A value (must be same type of `label`'s cells)
+    :return: A [*, d] bool tensor
+    """
+    return torch.masked_fill(mask, mask=label == background, value=0)
 
 
 def get_class_count(box_class, n_class=-1):
