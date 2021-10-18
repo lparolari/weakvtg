@@ -85,6 +85,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
     phrases_2_crd_index = batch["phrases_2_crd_index"]  # [b, n_ph, 1]
     noun_phrase = batch["noun_phrase"]  # [b, n_np, n_np_len]
+    adjective = batch["adjective"]  # [b, n_adj, adj_len]
 
     def _get_padded_phrases_2_crd(phrases_2_crd):
         dim = (get_number_examples(phrases_2_crd),
@@ -124,6 +125,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_2_crd, _ = _get_padded_phrases_2_crd(phrases_2_crd)
     phrases_2_crd_index, _ = _get_padded_phrases_2_crd_index(phrases_2_crd_index)
     noun_phrase, noun_phrase_mask = get_phrases_tensor(noun_phrase, tokenizer=tokenizer, vocab=vocab)
+    adjective, adjective_mask = get_phrases_tensor(adjective, tokenizer=tokenizer, vocab=vocab)
 
     return {
         "id": torch.tensor(batch["id"], dtype=torch.long),
@@ -148,6 +150,8 @@ def collate_fn(batch, tokenizer, vocab):
         "phrases_2_crd_index": phrases_2_crd_index,
         "noun_phrase": noun_phrase,
         "noun_phrase_mask": noun_phrase_mask,
+        "adjective": adjective,
+        "adjective_mask": adjective_mask,
     }
 
 
@@ -156,8 +160,8 @@ def read_index(filename: str):
         return [line.strip("\n") for line in f.readlines()]
 
 
-def process_example(example, *, f_nlp, f_extract_noun_phrase, n_boxes_to_keep: int = 100, n_active_box: int = 3,
-                    use_replace_phrase_with_noun_phrase: bool = False):
+def process_example(example, *, f_nlp, f_extract_noun_phrase, f_extract_adjective, n_boxes_to_keep: int = 100,
+                    n_active_box: int = 3, use_replace_phrase_with_noun_phrase: bool = False):
     def pad_boxes():
         """
         Pad boxes and update `example` as a side effect.
@@ -245,6 +249,12 @@ def process_example(example, *, f_nlp, f_extract_noun_phrase, n_boxes_to_keep: i
 
         example["class_count"] = box_class_count.detach().numpy().tolist()
 
+    def adjective():
+        phrases = example["phrases"]
+        adjective = get_adjective(phrases, f_nlp=f_nlp, f_extract_adjective=f_extract_adjective)
+
+        example["adjective"] = adjective
+
     example["id"] = int(example["id"])
     example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
@@ -261,6 +271,9 @@ def process_example(example, *, f_nlp, f_extract_noun_phrase, n_boxes_to_keep: i
     # requires `pad_boxes` because it leverages on same number of bounding box
     # requires `remove_background` to compute unbiased frequencies
     class_count()
+
+    # requires `phrases` not to be replaced by `noun_phrases`
+    adjective()
 
     noun_phrase()
 
@@ -299,3 +312,15 @@ def get_noun_phrase(phrases, *, f_extract_noun_phrase, f_nlp):
     noun_phrases = list(noun_phrases)
 
     return noun_phrases
+
+
+def get_adjective(phrases, *, f_extract_adjective, f_nlp):
+    def extract(phrase): return f_extract_adjective(f_nlp(phrase))
+    def join(adjectives): return " ".join(adjectives)
+    def join_if_not_empty(adjectives): return None if len(adjectives) == 0 else join(adjectives)
+
+    adjectives = list(map(extract, phrases))
+    adjectives = list(map(join, adjectives))
+    adjectives = list(adjectives)
+
+    return adjectives

@@ -25,7 +25,8 @@ from weakvtg.model import apply_concept_similarity_product
 from weakvtg.model import apply_concept_similarity_mean
 from weakvtg.concept import get_concept_similarity, aggregate_words_by_max, aggregate_words_by_mean, binary_threshold, \
     get_concept_similarity_direction
-from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp, get_noun_phrases, root_chunk_iter
+from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp, get_noun_phrases, root_chunk_iter, adj_iter, \
+    get_adjectives
 from weakvtg.train import train, load_model, test_example, test, classes_frequency, concepts_frequency
 from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list, get_word_embedding
 
@@ -240,8 +241,10 @@ def main():
 
     # create dataset adapter
     f_get_noun_phrase = functools.partial(get_noun_phrases, f_chunking=root_chunk_iter)
+    f_get_adjective = functools.partial(get_adjectives, f_adjective=adj_iter)
     process_fn = functools.partial(process_example, n_boxes_to_keep=n_box, f_extract_noun_phrase=f_get_noun_phrase,
-                                   f_nlp=nlp, use_replace_phrase_with_noun_phrase=use_replace_phrase_with_noun_phrase)
+                                   f_extract_adjective=f_get_adjective, f_nlp=nlp,
+                                   use_replace_phrase_with_noun_phrase=use_replace_phrase_with_noun_phrase)
 
     train_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=train_idx_filepath, process_fn=process_fn)
     valid_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=valid_idx_filepath, process_fn=process_fn)
