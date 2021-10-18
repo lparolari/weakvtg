@@ -273,6 +273,7 @@ def create_phrases_embedding_network(vocab, pretrained_embeddings, *, embedding_
 
     vocab_size = len(vocab)
     out_of_vocabulary = 0
+    out_of_vocabulary_words = []
 
     embedding_matrix_values = torch.zeros((vocab_size + 1, embedding_size), requires_grad=(not freeze))
 
@@ -302,10 +303,12 @@ def create_phrases_embedding_network(vocab, pretrained_embeddings, *, embedding_
             embedding_matrix_values[word_idx, :] = word_rep
         else:
             out_of_vocabulary += 1
+            out_of_vocabulary_words += [word]
             nn.init.normal_(embedding_matrix_values[word_idx, :])
 
     if out_of_vocabulary != 0:
         logging.warning(f"Found {out_of_vocabulary} words out of vocabulary.")
+        logging.debug(f"Out of vocab words: {out_of_vocabulary_words}")
 
     embedding_matrix = nn.Embedding(vocab_size, embedding_size)
     embedding_matrix.weight = torch.nn.Parameter(embedding_matrix_values)
