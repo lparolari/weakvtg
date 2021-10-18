@@ -295,6 +295,7 @@ def test_example(dataset, loader, model, optimizer, criterion, vocab, classes):
         img_ = iox.load_image(os.path.join(dataset.image_filepath, f"{idx_}.jpg"))
 
         print(f"({i}) Example: pos={idx_}, neg={idx_negative_}")
+        print(f"({i}) Sentence: {sentence_str_}")
         print(f"({i}) Image: w={width_}, h={height_}")
         print(f"({i}) Loss: {loss_}")
         print(f"({i}) Accuracy: {accuracy_}")
