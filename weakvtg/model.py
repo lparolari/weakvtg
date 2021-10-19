@@ -32,7 +32,7 @@ class MockModel(Model):
 
 
 class WeakVtgModel(Model):
-    def __init__(self, phrases_embedding_net, phrases_recurrent_net, image_embedding_net,
+    def __init__(self, phrases_embedding_net, phrases_recurrent_net, image_embedding_net, get_attributes_embedding,
                  get_classes_embedding, get_phrases_embedding, get_phrases_representation, get_concept_similarity,
                  f_similarity, apply_concept_similarity):
         super().__init__()
@@ -42,6 +42,7 @@ class WeakVtgModel(Model):
         self.image_embedding_net = image_embedding_net
 
         self.get_classes_embedding = get_classes_embedding
+        self.get_attributes_embedding = get_attributes_embedding
         self.get_phrases_embedding = get_phrases_embedding
         self.get_phrases_representation = get_phrases_representation
         self.get_concept_similarity = get_concept_similarity

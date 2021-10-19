@@ -69,6 +69,7 @@ def parse_args():
     parser.add_argument("--test-idx-filepath", type=str, default=None)
     parser.add_argument("--vocab-filepath", type=str, default=None)
     parser.add_argument("--classes-vocab-filepath", type=str, default=None)
+    parser.add_argument("--attributes-vocab-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--word-embedding", type=str, default=None)
     parser.add_argument("--text-embedding-size", type=int, default=None)
@@ -124,6 +125,7 @@ def main():
         "test_idx_filepath": args.test_idx_filepath,
         "vocab_filepath": args.vocab_filepath,
         "classes_vocab_filepath": args.classes_vocab_filepath,
+        "attributes_vocab_filepath": args.attributes_vocab_filepath,
         "learning_rate": args.learning_rate,
         "word_embedding": args.word_embedding,
         "text_embedding_size": args.text_embedding_size,
@@ -160,6 +162,7 @@ def main():
     test_idx_filepath = config["test_idx_filepath"]
     vocab_filepath = config["vocab_filepath"]
     classes_vocab_filepath = config["classes_vocab_filepath"]
+    attributes_vocab_filepath = config["attributes_vocab_filepath"]
     learning_rate = config["learning_rate"]
     word_embedding = config["word_embedding"]
     text_embedding_size = config["text_embedding_size"]
@@ -203,6 +206,7 @@ def main():
 
     vocab = load_vocab_from_json(vocab_filepath)
     classes_vocab = load_vocab_from_list(load_classes(classes_vocab_filepath))
+    attributes_vocab = load_vocab_from_list(load_classes(attributes_vocab_filepath))
 
     word_embedding = get_word_embedding(word_embedding, text_embedding_size)
 
@@ -210,6 +214,8 @@ def main():
                                                              f_spell_correction=f_spell_correction, freeze=True)
     classes_embedding_net = create_phrases_embedding_network(classes_vocab, word_embedding,
                                                              embedding_size=text_embedding_size, freeze=True)
+    attributes_embedding_net = create_phrases_embedding_network(attributes_vocab, word_embedding,
+                                                                embedding_size=text_embedding_size, freeze=True)
 
     phrases_recurrent_layer = make_phrases_recurrent(text_recurrent_network_type)
     phrases_recurrent_net = phrases_recurrent_layer(text_embedding_size, text_semantic_size,
@@ -222,6 +228,7 @@ def main():
                                                  n_hidden_layer=image_projection_hidden_layers)
 
     _get_classes_embedding = functools.partial(get_phrases_embedding, embedding_network=classes_embedding_net)
+    _get_attributes_embedding = functools.partial(get_phrases_embedding, embedding_network=attributes_embedding_net)
     _get_phrases_embedding = functools.partial(get_phrases_embedding, embedding_network=phrases_embedding_net)
     _get_phrases_representation = functools.partial(get_phrases_representation,
                                                     recurrent_network=phrases_recurrent_net,
@@ -264,6 +271,7 @@ def main():
         phrases_recurrent_net=phrases_recurrent_net,
         image_embedding_net=image_embedding_net,
         get_classes_embedding=_get_classes_embedding,
+        get_attributes_embedding=_get_attributes_embedding,
         get_phrases_embedding=_get_phrases_embedding,
         get_phrases_representation=_get_phrases_representation,
         get_concept_similarity=_get_concept_similarity,

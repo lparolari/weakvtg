@@ -13,6 +13,7 @@ __defaults = {
     "test_idx_filepath": "data/referit_raw/test.txt",
     "vocab_filepath": "data/referit_raw/vocab.json",
     "classes_vocab_filepath": "data/objects_vocab.txt",
+    "attributes_vocab_filepath": "data/attributes_vocab.txt",
     "learning_rate": 0.001,
     "word_embedding": "glove",
     "text_embedding_size": 300,
