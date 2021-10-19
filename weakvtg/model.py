@@ -56,14 +56,18 @@ class WeakVtgModel(Model):
         boxes_mask = batch["pred_boxes_mask"]                   # [b, n_boxes]
         boxes_features = batch["pred_boxes_features"]           # [b, n_boxes, 2048]
         boxes_class_prob = batch["pred_cls_prob"]               # [b, n_boxes, n_class]
+        box_class = get_box_class(boxes_class_prob)             # [b, n_box]
         phrases = batch["phrases"]                              # [b, n_ph+, n_words+]
         phrases_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
         noun_phrase = batch["noun_phrase"]                      # [b, n_np, n_np_len]
         noun_phrase_mask = batch["noun_phrase_mask"]            # [b, n_np, n_np_len]
         phrases_negative = batch["phrases_negative"]            # [b, n_ph-, n_words-]
         phrases_mask_negative = batch["phrases_mask_negative"]  # [b, n_ph-, n_words-]
-
-        box_class = get_box_class(boxes_class_prob)  # [b, n_boxes]
+        adjective = batch["adjective"]                          # [b, n_np, n_np_len]
+        adjective_mask = batch["adjective_mask"]                # [b, n_np, n_np_len]
+        box_attribute_prob = batch["pred_attr_prob"]            # [b, n_box, n_attr]
+        box_attribute = get_box_attribute(box_attribute_prob)   # [b, n_box]
+        box_attribute_mask = batch["attribute_mask"]            # [b, n_box]
 
         n_boxes = pred_n_boxes[0]
         n_ph_pos = phrases.size()[1]
@@ -71,12 +75,14 @@ class WeakVtgModel(Model):
 
         _get_concept_similarity = self.get_concept_similarity
         _get_classes_embedding = self.get_classes_embedding
+        _get_attributes_embedding = self.get_attributes_embedding
         _get_phrases_embedding = self.get_phrases_embedding
         _get_phrases_features = functools.partial(get_phrases_features,
                                                   get_phrases_embedding=_get_phrases_embedding,
                                                   get_phrases_representation=self.get_phrases_representation)
         _get_image_representation = functools.partial(get_image_representation, embedding_net=self.image_embedding_net)
         apply_concept_similarity = self.apply_concept_similarity
+        apply_attribute_similarity = apply_concept_similarity_mean  # TODO: parametrize
 
         _phrases_mask = get_synthetic_mask(phrases_mask)
         _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
@@ -106,15 +112,32 @@ class WeakVtgModel(Model):
             phrase_embedding = _get_phrases_embedding(phrase)
             return _get_concept_similarity((phrase_embedding, phrase_mask), (box_class_embedding, boxes_mask))
 
-        def proportional(similarity, logits):
-            if self.use_proportional_concept_similarity:
-                return similarity * logits
-            return positive_logits
+        def compute_attribute_similarity():
+            adjective_embedding = _get_phrases_embedding(adjective)
+            attribute_embedding = _get_attributes_embedding(box_attribute)
+
+            adjective_embedding_mask = adjective_mask.unsqueeze(-1)
+            attribute_embedding_mask = box_attribute_mask.unsqueeze(-1)
+
+            attribute_similarity = _get_concept_similarity(
+                (adjective_embedding, adjective_embedding_mask),
+                (attribute_embedding, attribute_embedding_mask)
+            )
+
+            _box_attribute_mask = box_attribute_mask.unsqueeze(-2)
+            _adjective_mask = adjective_mask.sum(dim=-1, keepdims=True).to(torch.bool)
+
+            attribute_similarity = torch.masked_fill(attribute_similarity, mask=_box_attribute_mask == 0, value=0)
+            attribute_similarity = torch.masked_fill(attribute_similarity, mask=_adjective_mask == 0, value=0)
+
+            return attribute_similarity
 
         positive_concept_similarity = concept_similarity(noun_phrase, noun_phrase_mask, boxes_mask)  # [b, n_ph, n_box]
+        attribute_similarity = compute_attribute_similarity()
 
         positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
         positive_logits = apply_concept_similarity(positive_logits, positive_concept_similarity)
+        positive_logits = apply_attribute_similarity(positive_logits, attribute_similarity)
         positive_logits = torch.masked_fill(positive_logits, _phrases_mask == 0, value=-1)
         positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=-1)
 
@@ -227,6 +250,13 @@ def get_phrases_representation(phrases_emb, phrases_length, mask, out_features, 
 
 
 def get_box_class(probability):
+    """
+    Return the argmax on `probability` tensor.
+    """
+    return torch.argmax(probability, dim=-1)
+
+
+def get_box_attribute(probability):
     """
     Return the argmax on `probability` tensor.
     """
