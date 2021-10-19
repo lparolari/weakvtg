@@ -86,6 +86,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_2_crd_index = batch["phrases_2_crd_index"]  # [b, n_ph, 1]
     noun_phrase = batch["noun_phrase"]  # [b, n_np, n_np_len]
     adjective = batch["adjective"]  # [b, n_adj, adj_len]
+    attribute_mask = batch["attribute_mask"]  # [b, n_box]
 
     def _get_padded_phrases_2_crd(phrases_2_crd):
         dim = (get_number_examples(phrases_2_crd),
@@ -126,6 +127,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_2_crd_index, _ = _get_padded_phrases_2_crd_index(phrases_2_crd_index)
     noun_phrase, noun_phrase_mask = get_phrases_tensor(noun_phrase, tokenizer=tokenizer, vocab=vocab)
     adjective, adjective_mask = get_phrases_tensor(adjective, tokenizer=tokenizer, vocab=vocab)
+    attribute_mask = torch.tensor(attribute_mask)
 
     return {
         "id": torch.tensor(batch["id"], dtype=torch.long),
@@ -152,6 +154,7 @@ def collate_fn(batch, tokenizer, vocab):
         "noun_phrase_mask": noun_phrase_mask,
         "adjective": adjective,
         "adjective_mask": adjective_mask,
+        "attribute_mask": attribute_mask,
     }
 
 
@@ -255,6 +258,13 @@ def process_example(example, *, f_nlp, f_extract_noun_phrase, f_extract_adjectiv
 
         example["adjective"] = adjective
 
+    def attribute():
+        attribute_probability = torch.tensor(example["pred_attr_prob"])
+        attribute_mask = get_attribute_mask(get_attribute(attribute_probability))
+
+        example["attribute_mask"] = attribute_mask.detach().numpy().tolist()
+
+
     example["id"] = int(example["id"])
     example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
@@ -277,6 +287,8 @@ def process_example(example, *, f_nlp, f_extract_noun_phrase, f_extract_adjectiv
 
     noun_phrase()
 
+    attribute()
+
     return example
 
 
@@ -289,7 +301,7 @@ def get_mask_without_background(mask, label, background=0):
     :param background: A value (must be same type of `label`'s cells)
     :return: A [*, d] bool tensor
     """
-    return torch.masked_fill(mask, mask=label == background, value=0)
+    return torch.masked_fill(mask, mask=label == background, value=0).to(torch.bool)
 
 
 def get_class_count(box_class, n_class=-1):
@@ -331,3 +343,11 @@ def get_adjective(phrases, *, f_extract_adjective, f_nlp):
     adjectives = list(adjectives)
 
     return adjectives
+
+
+def get_attribute(probability):
+    return torch.argmax(probability, dim=-1)
+
+
+def get_attribute_mask(attribute):
+    return get_mask_without_background(mask=torch.ones_like(attribute), label=attribute, background=0)
