@@ -48,4 +48,5 @@ processed_keys = ["id", "sentence", "phrases", "n_phrases", "ewiser_chunks", "ew
 @pytest.mark.parametrize("key", processed_keys)
 def test_preprocess_example(image_example, caption_example, key):
     assert key in process_example({**caption_example, **image_example},
-                                  f_nlp=lambda x: x, f_extract_noun_phrase=lambda x: x).keys()
+                                  f_nlp=lambda x: x, f_extract_noun_phrase=lambda x: x,
+                                  f_extract_adjective=lambda x: x).keys()

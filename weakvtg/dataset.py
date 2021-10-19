@@ -264,7 +264,6 @@ def process_example(example, *, f_nlp, f_extract_noun_phrase, f_extract_adjectiv
 
         example["attribute_mask"] = attribute_mask.detach().numpy().tolist()
 
-
     example["id"] = int(example["id"])
     example["phrases_2_crd"] = bbox.scale_bbox(example["phrases_2_crd"], example["image_w"], example["image_h"])
     example["pred_boxes"] = bbox.scale_bbox(example["pred_boxes"], example["image_w"], example["image_h"])
@@ -336,10 +335,10 @@ def get_noun_phrase(phrases, *, f_extract_noun_phrase, f_nlp):
 def get_adjective(phrases, *, f_extract_adjective, f_nlp):
     def extract(phrase): return f_extract_adjective(f_nlp(phrase))
     def join(adjectives): return " ".join(adjectives)
-    def join_if_not_empty(adjectives): return None if len(adjectives) == 0 else join(adjectives)
+    def join_or_unk(adjectives): return "<unk>" if len(adjectives) == 0 else join(adjectives)
 
     adjectives = list(map(extract, phrases))
-    adjectives = list(map(join, adjectives))
+    adjectives = list(map(join_or_unk, adjectives))
     adjectives = list(adjectives)
 
     return adjectives
