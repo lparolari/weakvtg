@@ -127,8 +127,8 @@ class WeakVtgModel(Model):
             _box_attribute_mask = box_attribute_mask.unsqueeze(-2)
             _adjective_mask = adjective_mask.sum(dim=-1, keepdims=True).to(torch.bool)
 
-            attribute_similarity = torch.masked_fill(attribute_similarity, mask=_box_attribute_mask == 0, value=0)
-            attribute_similarity = torch.masked_fill(attribute_similarity, mask=_adjective_mask == 0, value=0)
+            attribute_similarity = torch.masked_fill(attribute_similarity, mask=_box_attribute_mask == 0, value=-1)
+            attribute_similarity = torch.masked_fill(attribute_similarity, mask=_adjective_mask == 0, value=-1)
 
             return attribute_similarity
 
