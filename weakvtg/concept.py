@@ -199,8 +199,6 @@ def get_concept_similarity_direction(similarity, f_activation):
     """
     Activate the similarity score wrt an activation function.
 
-    The activation function should return a value in {-1, 0, 1}.
-
     :param similarity: A [*] tensor
     :param f_activation: An activation function f([*]) -> [*]
     :return: A [*] tensor
@@ -211,8 +209,6 @@ def get_concept_similarity_direction(similarity, f_activation):
 def get_attribute_similarity_direction(similarity, box_attribute_mask, adjective_mask, *, f_activation):
     """
     Activate the similarity score wrt an activation function.
-
-    The activation function should return a value between {-1, 0, 1}.
 
     :param similarity: A [d1, ..., dN] tensor
     :param box_attribute_mask: A [c1, ..., cN] tensor, must be broadcastable
