@@ -12,4 +12,4 @@ def test_binary_threshold():
     similarity = torch.tensor([-.4, .0, .1, .2, .8])
     threshold = 0.2
 
-    assert torch.equal(binary_threshold(similarity, threshold), torch.tensor([-1., -1., -1., -1., 1.]))
+    assert torch.equal(binary_threshold(similarity, threshold), torch.tensor([0., 0., 0., 0., 1.]))
