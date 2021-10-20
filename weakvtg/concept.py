@@ -206,3 +206,20 @@ def get_concept_similarity_direction(similarity, f_activation):
     :return: A [*] tensor
     """
     return f_activation(similarity)
+
+
+def get_attribute_similarity_direction(similarity, box_attribute_mask, adjective_mask, *, f_activation):
+    """
+    Activate the similarity score wrt an activation function.
+
+    The activation function should return a value between {-1, 0, 1}.
+
+    :param similarity: A [d1, ..., dN] tensor
+    :param box_attribute_mask: A [c1, ..., cN] tensor, must be broadcastable
+    :param adjective_mask: A [b1, ..., bN] tensor, must be broadcastable
+    :param f_activation: An activation function f([d1, ..., dN]) -> [d1, ..., dN]
+    :return: A [d1, ..., dN] tensor
+    """
+    similarity = torch.masked_fill(similarity, mask=box_attribute_mask == 0, value=1)
+    similarity = torch.masked_fill(similarity, mask=adjective_mask == 0, value=1)
+    return f_activation(similarity)
