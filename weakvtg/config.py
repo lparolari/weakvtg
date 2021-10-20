@@ -26,6 +26,7 @@ __defaults = {
     "image_projection_net": "mlp",
     "concept_similarity_aggregation_strategy": "mean",
     "concept_similarity_activation_threshold": 0.,
+    "attribute_similarity_activation_threshold": 0.,
     "apply_concept_similarity_strategy": "one",
     "apply_concept_similarity_weight": 0.5,
     "loss": "inversely_correlated",

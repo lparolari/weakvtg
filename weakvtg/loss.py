@@ -8,14 +8,17 @@ from weakvtg.utils import expand
 
 
 class WeakVtgLoss(nn.Module):
-    def __init__(self, get_concept_similarity_direction, get_predicted_box, f_loss):
+    def __init__(self, *, get_concept_similarity_direction, get_attribute_similarity_direction, get_predicted_box,
+                 f_loss):
         super().__init__()
         self.get_concept_similarity_direction = get_concept_similarity_direction
+        self.get_attribute_similarity_direction = get_attribute_similarity_direction
         self.get_predicted_box = get_predicted_box
         self.f_loss = f_loss
 
     def forward(self, batch, output):
         get_concept_similarity_direction = self.get_concept_similarity_direction
+        get_attribute_similarity_direction = self.get_attribute_similarity_direction
         get_predicted_box = self.get_predicted_box
         f_loss = self.f_loss
 

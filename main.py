@@ -24,7 +24,7 @@ from weakvtg.model import apply_concept_similarity_one
 from weakvtg.model import apply_concept_similarity_product
 from weakvtg.model import apply_concept_similarity_mean
 from weakvtg.concept import get_concept_similarity, aggregate_words_by_max, aggregate_words_by_mean, binary_threshold, \
-    get_concept_similarity_direction
+    get_concept_similarity_direction, get_attribute_similarity_direction
 from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp, get_noun_phrases, root_chunk_iter, adj_iter, \
     get_adjectives
 from weakvtg.train import train, load_model, test_example, test, classes_frequency, concepts_frequency
@@ -82,6 +82,7 @@ def parse_args():
     parser.add_argument("--image-projection-hidden-layers", type=int, default=None)
     parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
     parser.add_argument("--concept-similarity-activation-threshold", type=float, default=None)
+    parser.add_argument("--attribute-similarity-activation-threshold", type=float, default=None)
     parser.add_argument("--apply-concept-similarity-strategy", type=str, default=None)
     parser.add_argument("--apply-concept-similarity-weight", type=float, default=None)
     parser.add_argument("--loss", type=str, default=None)
@@ -138,6 +139,7 @@ def main():
         "image_projection_hidden_layers": args.image_projection_hidden_layers,
         "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
         "concept_similarity_activation_threshold": args.concept_similarity_activation_threshold,
+        "attribute_similarity_activation_threshold": args.attribute_similarity_activation_threshold,
         "apply_concept_similarity_strategy": args.apply_concept_similarity_strategy,
         "apply_concept_similarity_weight": args.apply_concept_similarity_weight,
         "loss": args.loss,
@@ -175,6 +177,7 @@ def main():
     image_projection_hidden_layers = config["image_projection_hidden_layers"]
     concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
     concept_similarity_activation_threshold = config["concept_similarity_activation_threshold"]
+    attribute_similarity_activation_threshold = config["attribute_similarity_activation_threshold"]
     apply_concept_similarity_strategy = config["apply_concept_similarity_strategy"]
     apply_concept_similarity_weight = config["apply_concept_similarity_weight"]
     loss = config["loss"]
@@ -239,8 +242,12 @@ def main():
                                                 f_activation=torch.nn.Identity())
     _concept_similarity_direction_f_activation = functools.partial(binary_threshold,
                                                                    threshold=concept_similarity_activation_threshold)
+    _attribute_similarity_direction_f_activation = functools.partial(binary_threshold,
+                                                                     threshold=attribute_similarity_activation_threshold)
     _get_concept_similarity_direction = functools.partial(get_concept_similarity_direction,
                                                           f_activation=_concept_similarity_direction_f_activation)
+    _get_attribute_similarity_direction = functools.partial(get_attribute_similarity_direction,
+                                                            f_activation=_attribute_similarity_direction_f_activation)
     _get_predicted_box = make_localization_strategy(localization_strategy)
     _apply_concept_similarity_params = {"mean": {"lam": apply_concept_similarity_weight}}
     _apply_concept_similarity = make_apply_concept_similarity(apply_concept_similarity_strategy,
@@ -281,6 +288,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(
         get_concept_similarity_direction=_get_concept_similarity_direction,
+        get_attribute_similarity_direction=_get_attribute_similarity_direction,
         get_predicted_box=_get_predicted_box,
         f_loss=make_f_loss(loss)
     )
