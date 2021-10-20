@@ -199,7 +199,7 @@ def get_concept_similarity_direction(similarity, f_activation):
     """
     Activate the similarity score wrt an activation function.
 
-    The activation function should return a value between -1 and 1.
+    The activation function should return a value in {-1, 0, 1}.
 
     :param similarity: A [*] tensor
     :param f_activation: An activation function f([*]) -> [*]
