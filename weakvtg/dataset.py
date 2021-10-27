@@ -33,7 +33,7 @@ class VtgDataset(Dataset):
 
         def _load_example(index):
             image = self._load_image(index)
-            caption = self._load_caption(index)
+            caption = self._load_caption(index_negative)
 
             example = {**caption, **image}
             example = self.process_fn(example)
