@@ -8,14 +8,17 @@ from weakvtg.utils import expand
 
 
 class WeakVtgLoss(nn.Module):
-    def __init__(self, get_concept_similarity_direction, get_predicted_box, f_loss):
+    def __init__(self, *, get_concept_similarity_direction, get_attribute_similarity_direction, get_predicted_box,
+                 f_loss):
         super().__init__()
         self.get_concept_similarity_direction = get_concept_similarity_direction
+        self.get_attribute_similarity_direction = get_attribute_similarity_direction
         self.get_predicted_box = get_predicted_box
         self.f_loss = f_loss
 
     def forward(self, batch, output):
         get_concept_similarity_direction = self.get_concept_similarity_direction
+        get_attribute_similarity_direction = self.get_attribute_similarity_direction
         get_predicted_box = self.get_predicted_box
         f_loss = self.f_loss
 
@@ -30,11 +33,19 @@ class WeakVtgLoss(nn.Module):
         phrases_synthetic = get_synthetic_mask(phrases_mask)
         phrases_synthetic_negative = get_synthetic_mask(phrases_mask_negative)
         boxes_class_count = get_box_class_count(boxes_class, class_count)
+        adjective_mask = batch["adjective_mask"]  # [b, n_np, n_attr]
+        box_attribute_mask = batch["attribute_mask"]  # [b, n_box]
 
         (predicted_score_positive, predicted_score_negative) = output[0]  # [b, n_ph, n_box]
         (positive_concept_similarity, negative_concept_similarity) = output[1]  # [b, n_ph, n_box]
+        attribute_similarity = output[2]
 
         concept_direction = get_concept_similarity_direction(positive_concept_similarity)  # [b, n_ph, n_box]
+        attribute_direction = get_attribute_similarity_direction(
+            attribute_similarity, box_attribute_mask=box_attribute_mask.unsqueeze(-2),
+            adjective_mask=adjective_mask.sum(dim=-1, keepdims=True).to(torch.bool))  # [b, n_ph, n_box]
+
+        loss_direction = get_loss_direction(concept_direction, attribute_direction)
 
         score_positive_mask = phrases_synthetic
         score_positive = predicted_score_positive
@@ -44,7 +55,7 @@ class WeakVtgLoss(nn.Module):
             score_positive_mask,
             boxes_mask,
             boxes_class_count,
-            concept_direction,
+            loss_direction,
             f_loss=f_loss
         )
 
@@ -68,20 +79,20 @@ class WeakVtgLoss(nn.Module):
         return l_disc, *validation
 
 
-def arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direction, f_loss):
+def arloss(prediction, prediction_mask, box_mask, box_class_count, loss_direction, f_loss):
     """
     Given Q the set of queries, B the set of boxes, loss can be calculated as
         loss = - sum_{q in Q} p^q / | Q |
     where
         p^q = sum_{b in B} f_loss(X, y) / | B |
         X = prediction, box_class_count
-        y = concept_direction
+        y = loss_direction
 
     :param prediction: A [*, d1, d2] tensor
     :param prediction_mask: A [*, d1, 1] tensor
     :param box_mask: A [*, d2] tensor
     :param box_class_count: A [*, d2] tensor
-    :param concept_direction: A [*, d1, d2] tensor
+    :param loss_direction: A [*, d1, d2] tensor
     :param f_loss: A loss function, return a [*, d1, d2] tensor
     :return: A float value
     """
@@ -99,7 +110,7 @@ def arloss(prediction, prediction_mask, box_mask, box_class_count, concept_direc
 
     # compute loss
     X = (prediction, box_class_count)
-    y = concept_direction
+    y = loss_direction
 
     loss = f_loss(X, y)
 
@@ -162,7 +173,7 @@ def loss_orthogonal(X, y):
     x_pos = torch.masked_fill(x, mask=mask_pos == 0, value=0)
     x_neg = torch.masked_fill(x, mask=mask_pos == 1, value=0)
 
-    return -1 * x_pos + torch.square(x_neg)
+    return -1 * y * x_pos + torch.square(y * x_neg)
 
 
 def loss_orthogonal_box_class_count_scaled(X, y):
@@ -188,7 +199,7 @@ def loss_orthogonal_box_class_count_scaled(X, y):
     count_pos = torch.masked_fill(box_class_count, mask=mask_pos == 0, value=0) + eps
     count_neg = torch.masked_fill(box_class_count, mask=mask_pos == 1, value=0) + eps
 
-    return -1 * (x_pos / count_pos) + torch.square(x_neg) / count_neg
+    return -1 * (y * x_pos / count_pos) + torch.square(y * x_neg) / count_neg
 
 
 def get_iou_scores(boxes, gt, mask):
@@ -317,3 +328,21 @@ def get_box_class_count(box_class, class_count):
     :return: A [*, d1] tensor
     """
     return torch.gather(class_count, dim=-1, index=box_class)
+
+
+def get_loss_direction(a, b):
+    """
+    Return a tensor with values in {-1, 0, 1} implementing the following function
+    `f(a, b) = (a + b - b * (1 - a)) - 1`.
+
+    The desired effect is
+     * a=1, b=1 -> 1
+     * a=1, b=0 -> 0
+     * a=0, b=1 -> -1
+     * a=0, b=0 -> -1
+
+    :param a: A [d1, ..., dN] tensor with values in {0, 1}
+    :param b: A [d1, ..., dN] tensor with values in {0, 1}
+    :return: A [d1, ..., dN] tensor with values in {-1, 0, 1}
+    """
+    return (a + b - b * (1 - a)) - 1

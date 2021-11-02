@@ -13,6 +13,7 @@ __defaults = {
     "test_idx_filepath": "data/referit_raw/test.txt",
     "vocab_filepath": "data/referit_raw/vocab.json",
     "classes_vocab_filepath": "data/objects_vocab.txt",
+    "attributes_vocab_filepath": "data/attributes_vocab.txt",
     "learning_rate": 0.001,
     "word_embedding": "glove",
     "text_embedding_size": 300,
@@ -37,6 +38,11 @@ __defaults = {
     "use_spell_correction": False,
     "use_replace_phrase_with_noun_phrase": False,
     "localization_strategy": "max",
+    "attribute_similarity_aggregation_strategy": "max",
+    "attribute_similarity_apply_strategy": "one",
+    "attribute_similarity_apply_weight": 0.5,
+    "attribute_similarity_direction_function": "binary_threshold",
+    "attribute_similarity_direction_threshold": 0.,
 }
 
 

@@ -13,10 +13,21 @@ def test_vocab_loaded(vocab):
     assert "boy" in vocab
 
 
+def test_attributes_vocab_loaded(attributes_vocab):
+    assert isinstance(attributes_vocab, list)
+    assert "red" in attributes_vocab
+
+
 def test_word_embedding_given_classes(vocab, glove_words):
     out_of_vocabulary = list(filter(lambda word: word not in glove_words, vocab))
 
     assert len(out_of_vocabulary) == 295
+
+
+def test_attributes_vocab_oov(attributes_vocab, glove_words):
+    out_of_vocabulary = list(filter(lambda word: word not in glove_words, attributes_vocab))
+
+    assert len(out_of_vocabulary) == 31
 
 
 def test_glove_word_embedding_similarity(glove_embeddings):
@@ -62,6 +73,12 @@ def get_similarity(word1, word2, embeddings):
 @pytest.fixture
 def vocab(resource_path_root):
     vocab_path = (resource_path_root / "objects_vocab.txt")
+    return classes.load_classes(vocab_path)
+
+
+@pytest.fixture
+def attributes_vocab(resource_path_root):
+    vocab_path = (resource_path_root / "attributes_vocab.txt")
     return classes.load_classes(vocab_path)
 
 

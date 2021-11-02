@@ -24,8 +24,9 @@ from weakvtg.model import apply_concept_similarity_one
 from weakvtg.model import apply_concept_similarity_product
 from weakvtg.model import apply_concept_similarity_mean
 from weakvtg.concept import get_concept_similarity, aggregate_words_by_max, aggregate_words_by_mean, binary_threshold, \
-    get_concept_similarity_direction
-from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp, get_noun_phrases, root_chunk_iter
+    get_concept_similarity_direction, get_attribute_similarity_direction
+from weakvtg.tokenizer import get_torchtext_tokenizer_adapter, get_nlp, get_noun_phrases, root_chunk_iter, adj_iter, \
+    get_adjectives
 from weakvtg.train import train, load_model, test_example, test, classes_frequency, concepts_frequency
 from weakvtg.vocabulary import load_vocab_from_json, load_vocab_from_list, get_word_embedding
 
@@ -34,6 +35,9 @@ make_phrases_recurrent = make_options("RNN type", options={"lstm": nn.LSTM, "rnn
 make_concept_similarity_f_aggregate = make_options("concept similarity aggregation strategy",
                                                    options={"max": aggregate_words_by_max,
                                                             "mean": aggregate_words_by_mean})
+make_attribute_similarity_f_aggregate = make_options("attribute similarity aggregation strategy",
+                                                     options={"max": aggregate_words_by_max,
+                                                              "mean": aggregate_words_by_mean})
 make_f_loss = make_options("loss", options={
         "inversely_correlated": loss_inversely_correlated,
         "inversely_correlated_box_class_count_scaled": loss_inversely_correlated_box_class_count_scaled,
@@ -41,6 +45,11 @@ make_f_loss = make_options("loss", options={
         "orthogonal_box_class_count_scaled": loss_orthogonal_box_class_count_scaled,
     })
 make_apply_concept_similarity = make_options("apply concept similarity strategy", options={
+        "one": apply_concept_similarity_one,
+        "product": apply_concept_similarity_product,
+        "mean": apply_concept_similarity_mean
+    })
+make_apply_attribute_similarity = make_options("apply attribute similarity strategy", options={
         "one": apply_concept_similarity_one,
         "product": apply_concept_similarity_product,
         "mean": apply_concept_similarity_mean
@@ -53,6 +62,10 @@ make_image_projection_net = make_options("image projection net", options={
         "none": torch.nn.Identity,
         "mlp": create_image_embedding_network,
     })
+make_attribute_similarity_direction_function = make_options("attribute similarity direction function", options={
+    "binary_threshold": binary_threshold,
+    "one": lambda x, *_, **__: torch.ones_like(x),
+})
 
 
 def parse_args():
@@ -68,6 +81,7 @@ def parse_args():
     parser.add_argument("--test-idx-filepath", type=str, default=None)
     parser.add_argument("--vocab-filepath", type=str, default=None)
     parser.add_argument("--classes-vocab-filepath", type=str, default=None)
+    parser.add_argument("--attributes-vocab-filepath", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--word-embedding", type=str, default=None)
     parser.add_argument("--text-embedding-size", type=int, default=None)
@@ -92,6 +106,11 @@ def parse_args():
     parser.add_argument("--use-spell-correction", action="store_true", default=None)
     parser.add_argument("--use-replace-phrase-with-noun-phrase", action="store_true", default=None)
     parser.add_argument("--localization-strategy", type=str, default=None)
+    parser.add_argument("--attribute-similarity-aggregation-strategy", type=str, default=None)
+    parser.add_argument("--attribute-similarity-direction-function", type=str, default=None)
+    parser.add_argument("--attribute-similarity-direction-threshold", type=float, default=None)
+    parser.add_argument("--attribute-similarity-apply-strategy", type=str, default=None)
+    parser.add_argument("--attribute-similarity-apply-weight", type=float, default=None)
 
     parser.add_argument("--workflow", type=str, choices=["train", "valid", "test", "test-example", "classes-frequency",
                                                          "concepts-frequency"],
@@ -123,6 +142,7 @@ def main():
         "test_idx_filepath": args.test_idx_filepath,
         "vocab_filepath": args.vocab_filepath,
         "classes_vocab_filepath": args.classes_vocab_filepath,
+        "attributes_vocab_filepath": args.attributes_vocab_filepath,
         "learning_rate": args.learning_rate,
         "word_embedding": args.word_embedding,
         "text_embedding_size": args.text_embedding_size,
@@ -146,7 +166,12 @@ def main():
         "restore": args.restore,
         "use_spell_correction": args.use_spell_correction,
         "use_replace_phrase_with_noun_phrase": args.use_replace_phrase_with_noun_phrase,
-        "localization_strategy": args.localization_strategy
+        "localization_strategy": args.localization_strategy,
+        "attribute_similarity_aggregation_strategy": args.attribute_similarity_aggregation_strategy,
+        "attribute_similarity_direction_function": args.attribute_similarity_direction_function,
+        "attribute_similarity_direction_threshold": args.attribute_similarity_direction_threshold,
+        "attribute_similarity_apply_strategy": args.attribute_similarity_apply_strategy,
+        "attribute_similarity_apply_weight": args.attribute_similarity_apply_weight,
     })
 
     batch_size = config["batch_size"]
@@ -159,6 +184,7 @@ def main():
     test_idx_filepath = config["test_idx_filepath"]
     vocab_filepath = config["vocab_filepath"]
     classes_vocab_filepath = config["classes_vocab_filepath"]
+    attributes_vocab_filepath = config["attributes_vocab_filepath"]
     learning_rate = config["learning_rate"]
     word_embedding = config["word_embedding"]
     text_embedding_size = config["text_embedding_size"]
@@ -183,6 +209,11 @@ def main():
     use_spell_correction = config["use_spell_correction"]
     use_replace_phrase_with_noun_phrase = config["use_replace_phrase_with_noun_phrase"]
     localization_strategy = config["localization_strategy"]
+    attribute_similarity_aggregation_strategy = config["attribute_similarity_aggregation_strategy"]
+    attribute_similarity_direction_function = config["attribute_similarity_direction_function"]
+    attribute_similarity_direction_threshold = config["attribute_similarity_direction_threshold"]
+    attribute_similarity_apply_strategy = config["attribute_similarity_apply_strategy"]
+    attribute_similarity_apply_weight = config["attribute_similarity_apply_weight"]
 
     device = torch.device(device_name)
 
@@ -198,10 +229,12 @@ def main():
     tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(nlp))
     f_spell_correction = spellchecker.SpellChecker().correction if use_spell_correction else None
 
-    f_aggregate = make_concept_similarity_f_aggregate(concept_similarity_aggregation_strategy)
+    concept_f_aggregate = make_concept_similarity_f_aggregate(concept_similarity_aggregation_strategy)
+    attribute_f_aggregate = make_attribute_similarity_f_aggregate(attribute_similarity_aggregation_strategy)
 
     vocab = load_vocab_from_json(vocab_filepath)
     classes_vocab = load_vocab_from_list(load_classes(classes_vocab_filepath))
+    attributes_vocab = load_vocab_from_list(load_classes(attributes_vocab_filepath))
 
     word_embedding = get_word_embedding(word_embedding, text_embedding_size)
 
@@ -209,6 +242,8 @@ def main():
                                                              f_spell_correction=f_spell_correction, freeze=True)
     classes_embedding_net = create_phrases_embedding_network(classes_vocab, word_embedding,
                                                              embedding_size=text_embedding_size, freeze=True)
+    attributes_embedding_net = create_phrases_embedding_network(attributes_vocab, word_embedding,
+                                                                embedding_size=text_embedding_size, freeze=True)
 
     phrases_recurrent_layer = make_phrases_recurrent(text_recurrent_network_type)
     phrases_recurrent_net = phrases_recurrent_layer(text_embedding_size, text_semantic_size,
@@ -221,27 +256,40 @@ def main():
                                                  n_hidden_layer=image_projection_hidden_layers)
 
     _get_classes_embedding = functools.partial(get_phrases_embedding, embedding_network=classes_embedding_net)
+    _get_attributes_embedding = functools.partial(get_phrases_embedding, embedding_network=attributes_embedding_net)
     _get_phrases_embedding = functools.partial(get_phrases_embedding, embedding_network=phrases_embedding_net)
     _get_phrases_representation = functools.partial(get_phrases_representation,
                                                     recurrent_network=phrases_recurrent_net,
                                                     out_features=text_semantic_size,
                                                     device=device)
-    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=f_aggregate,
-                                                f_similarity=torch.cosine_similarity,
-                                                f_activation=torch.nn.Identity())
+    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=concept_f_aggregate,
+                                                f_similarity=torch.cosine_similarity, f_activation=torch.nn.Identity())
+    _get_attribute_similarity = functools.partial(get_concept_similarity, f_aggregate=attribute_f_aggregate,
+                                                  f_similarity=torch.cosine_similarity,
+                                                  f_activation=torch.nn.Identity())
     _concept_similarity_direction_f_activation = functools.partial(binary_threshold,
                                                                    threshold=concept_similarity_activation_threshold)
     _get_concept_similarity_direction = functools.partial(get_concept_similarity_direction,
                                                           f_activation=_concept_similarity_direction_f_activation)
+    _attribute_similarity_direction_f_activation = make_attribute_similarity_direction_function(
+        attribute_similarity_direction_function,
+        params={"binary_threshold": {"threshold": attribute_similarity_direction_threshold}})
+    _get_attribute_similarity_direction = functools.partial(get_attribute_similarity_direction,
+                                                            f_activation=_attribute_similarity_direction_f_activation)
     _get_predicted_box = make_localization_strategy(localization_strategy)
     _apply_concept_similarity_params = {"mean": {"lam": apply_concept_similarity_weight}}
     _apply_concept_similarity = make_apply_concept_similarity(apply_concept_similarity_strategy,
                                                               params=_apply_concept_similarity_params)
+    _apply_attribute_similarity_params = {"mean": {"lam": attribute_similarity_apply_weight}}
+    _apply_attribute_similarity = make_apply_attribute_similarity(attribute_similarity_apply_strategy,
+                                                                  params=_apply_attribute_similarity_params)
 
     # create dataset adapter
     f_get_noun_phrase = functools.partial(get_noun_phrases, f_chunking=root_chunk_iter)
+    f_get_adjective = functools.partial(get_adjectives, f_adjective=adj_iter)
     process_fn = functools.partial(process_example, n_boxes_to_keep=n_box, f_extract_noun_phrase=f_get_noun_phrase,
-                                   f_nlp=nlp, use_replace_phrase_with_noun_phrase=use_replace_phrase_with_noun_phrase)
+                                   f_extract_adjective=f_get_adjective, f_nlp=nlp,
+                                   use_replace_phrase_with_noun_phrase=use_replace_phrase_with_noun_phrase)
 
     train_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=train_idx_filepath, process_fn=process_fn)
     valid_dataset = VtgDataset(image_filepath, data_filepath, idx_filepath=valid_idx_filepath, process_fn=process_fn)
@@ -261,15 +309,19 @@ def main():
         phrases_recurrent_net=phrases_recurrent_net,
         image_embedding_net=image_embedding_net,
         get_classes_embedding=_get_classes_embedding,
+        get_attributes_embedding=_get_attributes_embedding,
         get_phrases_embedding=_get_phrases_embedding,
         get_phrases_representation=_get_phrases_representation,
         get_concept_similarity=_get_concept_similarity,
+        get_attribute_similarity=_get_attribute_similarity,
         f_similarity=F.cosine_similarity,
-        apply_concept_similarity=_apply_concept_similarity
+        apply_concept_similarity=_apply_concept_similarity,
+        apply_attribute_similarity=_apply_attribute_similarity
     )
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(
         get_concept_similarity_direction=_get_concept_similarity_direction,
+        get_attribute_similarity_direction=_get_attribute_similarity_direction,
         get_predicted_box=_get_predicted_box,
         f_loss=make_f_loss(loss)
     )

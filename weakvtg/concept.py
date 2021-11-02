@@ -186,23 +186,36 @@ def get_maximum_similarity_word(phrase_embedding_t, maximum_similarity_box_t):
 
 def binary_threshold(x, threshold):
     """
-    Return a tensor where each value is -1 whether < threshold, +1 otherwise.
+    Return a tensor whose values are 1 whether `x_i > threshold`, 0 otherwise.
 
     :param x: A [*] tensor
     :param threshold: A float value
     :return: A [*] tensor
     """
-    return torch.as_tensor(x > threshold, dtype=torch.float) * 2 - 1
+    return torch.as_tensor(x > threshold, dtype=torch.float)
 
 
 def get_concept_similarity_direction(similarity, f_activation):
     """
     Activate the similarity score wrt an activation function.
 
-    The activation function should return a value between -1 and 1.
-
     :param similarity: A [*] tensor
     :param f_activation: An activation function f([*]) -> [*]
     :return: A [*] tensor
     """
+    return f_activation(similarity)
+
+
+def get_attribute_similarity_direction(similarity, box_attribute_mask, adjective_mask, *, f_activation):
+    """
+    Activate the similarity score wrt an activation function.
+
+    :param similarity: A [d1, ..., dN] tensor
+    :param box_attribute_mask: A [c1, ..., cN] tensor, must be broadcastable
+    :param adjective_mask: A [b1, ..., bN] tensor, must be broadcastable
+    :param f_activation: An activation function f([d1, ..., dN]) -> [d1, ..., dN]
+    :return: A [d1, ..., dN] tensor
+    """
+    similarity = torch.masked_fill(similarity, mask=box_attribute_mask == 0, value=1)
+    similarity = torch.masked_fill(similarity, mask=adjective_mask == 0, value=1)
     return f_activation(similarity)
