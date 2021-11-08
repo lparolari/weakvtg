@@ -34,7 +34,7 @@ class MockModel(Model):
 class WeakVtgModel(Model):
     def __init__(self, phrases_embedding_net, phrases_recurrent_net, image_embedding_net, get_attributes_embedding,
                  get_classes_embedding, get_phrases_embedding, get_phrases_representation, get_concept_similarity,
-                 f_similarity, apply_concept_similarity):
+                 get_attribute_similarity, f_similarity, apply_concept_similarity, apply_attribute_similarity):
         super().__init__()
 
         self.phrases_embedding_net = phrases_embedding_net
@@ -46,7 +46,9 @@ class WeakVtgModel(Model):
         self.get_phrases_embedding = get_phrases_embedding
         self.get_phrases_representation = get_phrases_representation
         self.get_concept_similarity = get_concept_similarity
+        self.get_attribute_similarity = get_attribute_similarity
         self.apply_concept_similarity = apply_concept_similarity
+        self.apply_attribute_similarity = apply_attribute_similarity
 
         self.f_similarity = f_similarity
 
@@ -74,6 +76,7 @@ class WeakVtgModel(Model):
         n_ph_neg = phrases_negative.size()[1]
 
         _get_concept_similarity = self.get_concept_similarity
+        _get_attribute_similarity = self.get_attribute_similarity
         _get_classes_embedding = self.get_classes_embedding
         _get_attributes_embedding = self.get_attributes_embedding
         _get_phrases_embedding = self.get_phrases_embedding
@@ -82,7 +85,7 @@ class WeakVtgModel(Model):
                                                   get_phrases_representation=self.get_phrases_representation)
         _get_image_representation = functools.partial(get_image_representation, embedding_net=self.image_embedding_net)
         apply_concept_similarity = self.apply_concept_similarity
-        apply_attribute_similarity = apply_concept_similarity_mean  # TODO: parametrize
+        apply_attribute_similarity = self.apply_attribute_similarity
 
         _phrases_mask = get_synthetic_mask(phrases_mask)
         _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
@@ -119,7 +122,7 @@ class WeakVtgModel(Model):
             adjective_embedding_mask = adjective_mask.unsqueeze(-1)
             attribute_embedding_mask = box_attribute_mask.unsqueeze(-1)
 
-            attribute_similarity = _get_concept_similarity(
+            attribute_similarity = _get_attribute_similarity(
                 (adjective_embedding, adjective_embedding_mask),
                 (attribute_embedding, attribute_embedding_mask)
             )
@@ -137,7 +140,7 @@ class WeakVtgModel(Model):
 
         positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
         positive_logits = apply_concept_similarity(positive_logits, positive_concept_similarity)
-        # positive_logits = apply_attribute_similarity(positive_logits, attribute_similarity)  # TODO: temporary disabled
+        positive_logits = apply_attribute_similarity(positive_logits, attribute_similarity)
         positive_logits = torch.masked_fill(positive_logits, _phrases_mask == 0, value=-1)
         positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=-1)
 

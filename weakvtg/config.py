@@ -26,7 +26,6 @@ __defaults = {
     "image_projection_net": "mlp",
     "concept_similarity_aggregation_strategy": "mean",
     "concept_similarity_activation_threshold": 0.,
-    "attribute_similarity_activation_threshold": 0.,
     "apply_concept_similarity_strategy": "one",
     "apply_concept_similarity_weight": 0.5,
     "loss": "inversely_correlated",
@@ -39,6 +38,11 @@ __defaults = {
     "use_spell_correction": False,
     "use_replace_phrase_with_noun_phrase": False,
     "localization_strategy": "max",
+    "attribute_similarity_aggregation_strategy": "max",
+    "attribute_similarity_apply_strategy": "one",
+    "attribute_similarity_apply_weight": 0.5,
+    "attribute_similarity_direction_function": "binary_threshold",
+    "attribute_similarity_direction_threshold": 0.,
 }
 
 

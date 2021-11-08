@@ -35,6 +35,9 @@ make_phrases_recurrent = make_options("RNN type", options={"lstm": nn.LSTM, "rnn
 make_concept_similarity_f_aggregate = make_options("concept similarity aggregation strategy",
                                                    options={"max": aggregate_words_by_max,
                                                             "mean": aggregate_words_by_mean})
+make_attribute_similarity_f_aggregate = make_options("attribute similarity aggregation strategy",
+                                                     options={"max": aggregate_words_by_max,
+                                                              "mean": aggregate_words_by_mean})
 make_f_loss = make_options("loss", options={
         "inversely_correlated": loss_inversely_correlated,
         "inversely_correlated_box_class_count_scaled": loss_inversely_correlated_box_class_count_scaled,
@@ -42,6 +45,11 @@ make_f_loss = make_options("loss", options={
         "orthogonal_box_class_count_scaled": loss_orthogonal_box_class_count_scaled,
     })
 make_apply_concept_similarity = make_options("apply concept similarity strategy", options={
+        "one": apply_concept_similarity_one,
+        "product": apply_concept_similarity_product,
+        "mean": apply_concept_similarity_mean
+    })
+make_apply_attribute_similarity = make_options("apply attribute similarity strategy", options={
         "one": apply_concept_similarity_one,
         "product": apply_concept_similarity_product,
         "mean": apply_concept_similarity_mean
@@ -54,6 +62,10 @@ make_image_projection_net = make_options("image projection net", options={
         "none": torch.nn.Identity,
         "mlp": create_image_embedding_network,
     })
+make_attribute_similarity_direction_function = make_options("attribute similarity direction function", options={
+    "binary_threshold": binary_threshold,
+    "one": lambda x, *_, **__: torch.ones_like(x),
+})
 
 
 def parse_args():
@@ -82,7 +94,6 @@ def parse_args():
     parser.add_argument("--image-projection-hidden-layers", type=int, default=None)
     parser.add_argument("--concept-similarity-aggregation-strategy", type=str, default=None)
     parser.add_argument("--concept-similarity-activation-threshold", type=float, default=None)
-    parser.add_argument("--attribute-similarity-activation-threshold", type=float, default=None)
     parser.add_argument("--apply-concept-similarity-strategy", type=str, default=None)
     parser.add_argument("--apply-concept-similarity-weight", type=float, default=None)
     parser.add_argument("--loss", type=str, default=None)
@@ -95,6 +106,11 @@ def parse_args():
     parser.add_argument("--use-spell-correction", action="store_true", default=None)
     parser.add_argument("--use-replace-phrase-with-noun-phrase", action="store_true", default=None)
     parser.add_argument("--localization-strategy", type=str, default=None)
+    parser.add_argument("--attribute-similarity-aggregation-strategy", type=str, default=None)
+    parser.add_argument("--attribute-similarity-direction-function", type=str, default=None)
+    parser.add_argument("--attribute-similarity-direction-threshold", type=float, default=None)
+    parser.add_argument("--attribute-similarity-apply-strategy", type=str, default=None)
+    parser.add_argument("--attribute-similarity-apply-weight", type=float, default=None)
 
     parser.add_argument("--workflow", type=str, choices=["train", "valid", "test", "test-example", "classes-frequency",
                                                          "concepts-frequency"],
@@ -139,7 +155,6 @@ def main():
         "image_projection_hidden_layers": args.image_projection_hidden_layers,
         "concept_similarity_aggregation_strategy": args.concept_similarity_aggregation_strategy,
         "concept_similarity_activation_threshold": args.concept_similarity_activation_threshold,
-        "attribute_similarity_activation_threshold": args.attribute_similarity_activation_threshold,
         "apply_concept_similarity_strategy": args.apply_concept_similarity_strategy,
         "apply_concept_similarity_weight": args.apply_concept_similarity_weight,
         "loss": args.loss,
@@ -151,7 +166,12 @@ def main():
         "restore": args.restore,
         "use_spell_correction": args.use_spell_correction,
         "use_replace_phrase_with_noun_phrase": args.use_replace_phrase_with_noun_phrase,
-        "localization_strategy": args.localization_strategy
+        "localization_strategy": args.localization_strategy,
+        "attribute_similarity_aggregation_strategy": args.attribute_similarity_aggregation_strategy,
+        "attribute_similarity_direction_function": args.attribute_similarity_direction_function,
+        "attribute_similarity_direction_threshold": args.attribute_similarity_direction_threshold,
+        "attribute_similarity_apply_strategy": args.attribute_similarity_apply_strategy,
+        "attribute_similarity_apply_weight": args.attribute_similarity_apply_weight,
     })
 
     batch_size = config["batch_size"]
@@ -177,7 +197,6 @@ def main():
     image_projection_hidden_layers = config["image_projection_hidden_layers"]
     concept_similarity_aggregation_strategy = config["concept_similarity_aggregation_strategy"]
     concept_similarity_activation_threshold = config["concept_similarity_activation_threshold"]
-    attribute_similarity_activation_threshold = config["attribute_similarity_activation_threshold"]
     apply_concept_similarity_strategy = config["apply_concept_similarity_strategy"]
     apply_concept_similarity_weight = config["apply_concept_similarity_weight"]
     loss = config["loss"]
@@ -190,6 +209,11 @@ def main():
     use_spell_correction = config["use_spell_correction"]
     use_replace_phrase_with_noun_phrase = config["use_replace_phrase_with_noun_phrase"]
     localization_strategy = config["localization_strategy"]
+    attribute_similarity_aggregation_strategy = config["attribute_similarity_aggregation_strategy"]
+    attribute_similarity_direction_function = config["attribute_similarity_direction_function"]
+    attribute_similarity_direction_threshold = config["attribute_similarity_direction_threshold"]
+    attribute_similarity_apply_strategy = config["attribute_similarity_apply_strategy"]
+    attribute_similarity_apply_weight = config["attribute_similarity_apply_weight"]
 
     device = torch.device(device_name)
 
@@ -205,7 +229,8 @@ def main():
     tokenizer = torchtext.data.utils.get_tokenizer(tokenizer=get_torchtext_tokenizer_adapter(nlp))
     f_spell_correction = spellchecker.SpellChecker().correction if use_spell_correction else None
 
-    f_aggregate = make_concept_similarity_f_aggregate(concept_similarity_aggregation_strategy)
+    concept_f_aggregate = make_concept_similarity_f_aggregate(concept_similarity_aggregation_strategy)
+    attribute_f_aggregate = make_attribute_similarity_f_aggregate(attribute_similarity_aggregation_strategy)
 
     vocab = load_vocab_from_json(vocab_filepath)
     classes_vocab = load_vocab_from_list(load_classes(classes_vocab_filepath))
@@ -237,21 +262,27 @@ def main():
                                                     recurrent_network=phrases_recurrent_net,
                                                     out_features=text_semantic_size,
                                                     device=device)
-    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=f_aggregate,
-                                                f_similarity=torch.cosine_similarity,
-                                                f_activation=torch.nn.Identity())
+    _get_concept_similarity = functools.partial(get_concept_similarity, f_aggregate=concept_f_aggregate,
+                                                f_similarity=torch.cosine_similarity, f_activation=torch.nn.Identity())
+    _get_attribute_similarity = functools.partial(get_concept_similarity, f_aggregate=attribute_f_aggregate,
+                                                  f_similarity=torch.cosine_similarity,
+                                                  f_activation=torch.nn.Identity())
     _concept_similarity_direction_f_activation = functools.partial(binary_threshold,
                                                                    threshold=concept_similarity_activation_threshold)
-    _attribute_similarity_direction_f_activation = functools.partial(binary_threshold,
-                                                                     threshold=attribute_similarity_activation_threshold)
     _get_concept_similarity_direction = functools.partial(get_concept_similarity_direction,
                                                           f_activation=_concept_similarity_direction_f_activation)
+    _attribute_similarity_direction_f_activation = make_attribute_similarity_direction_function(
+        attribute_similarity_direction_function,
+        params={"binary_threshold": {"threshold": attribute_similarity_direction_threshold}})
     _get_attribute_similarity_direction = functools.partial(get_attribute_similarity_direction,
                                                             f_activation=_attribute_similarity_direction_f_activation)
     _get_predicted_box = make_localization_strategy(localization_strategy)
     _apply_concept_similarity_params = {"mean": {"lam": apply_concept_similarity_weight}}
     _apply_concept_similarity = make_apply_concept_similarity(apply_concept_similarity_strategy,
                                                               params=_apply_concept_similarity_params)
+    _apply_attribute_similarity_params = {"mean": {"lam": attribute_similarity_apply_weight}}
+    _apply_attribute_similarity = make_apply_attribute_similarity(attribute_similarity_apply_strategy,
+                                                                  params=_apply_attribute_similarity_params)
 
     # create dataset adapter
     f_get_noun_phrase = functools.partial(get_noun_phrases, f_chunking=root_chunk_iter)
@@ -282,8 +313,10 @@ def main():
         get_phrases_embedding=_get_phrases_embedding,
         get_phrases_representation=_get_phrases_representation,
         get_concept_similarity=_get_concept_similarity,
+        get_attribute_similarity=_get_attribute_similarity,
         f_similarity=F.cosine_similarity,
-        apply_concept_similarity=_apply_concept_similarity
+        apply_concept_similarity=_apply_concept_similarity,
+        apply_attribute_similarity=_apply_attribute_similarity
     )
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     criterion = WeakVtgLoss(
