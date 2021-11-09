@@ -45,19 +45,12 @@ class WeakVtgLoss(nn.Module):
             attribute_similarity, box_attribute_mask=box_attribute_mask.unsqueeze(-2),
             adjective_mask=adjective_mask.sum(dim=-1, keepdims=True).to(torch.bool))  # [b, n_ph, n_box]
 
-        loss_direction = get_loss_direction(concept_direction, attribute_direction)
+        loss_direction = get_loss_direction(concept_direction, attribute_direction)  # TODO: temporary disabled
 
-        score_positive_mask = phrases_synthetic
-        score_positive = predicted_score_positive
+        score_positive_mask, score_negative_mask = phrases_synthetic.squeeze(-1), phrases_synthetic_negative.squeeze(-1)
+        score_positive, score_negative = predicted_score_positive, predicted_score_negative
 
-        l_disc = arloss(
-            score_positive,
-            score_positive_mask,
-            boxes_mask,
-            boxes_class_count,
-            loss_direction,
-            f_loss=f_loss
-        )
+        L = loss_maf((score_positive, score_negative), (score_positive_mask, score_negative_mask))
 
         def get_validation(boxes, boxes_gt, scores, mask):
             with torch.no_grad():
@@ -76,7 +69,7 @@ class WeakVtgLoss(nn.Module):
         # model output.
         validation = get_validation(boxes, phrases_2_crd, predicted_score_positive, phrases_synthetic)
 
-        return l_disc, *validation
+        return L, *validation
 
 
 def arloss(prediction, prediction_mask, box_mask, box_class_count, loss_direction, f_loss):
@@ -123,6 +116,41 @@ def arloss(prediction, prediction_mask, box_mask, box_class_count, loss_directio
     loss = average_over_phrases(loss, prediction_mask)
 
     return loss
+
+
+def loss_maf(attention_t, mask_t):
+    """
+    Returns
+                   e^sim(I, S)
+        L = - log --------------
+                   e^sim(I, S')
+    where
+        sim(I, S) is the multimodal similarity built on
+          attention A_{j,z} with A_{j,z} the similarity
+          measure between phrase p_j and box b_z,
+        I is the set of bounding box,
+        S is the set of queries, and
+        S' is the set of negative queries
+
+    :param attention_t: A tuple of [*, n_ph, n_box] tensors
+    :param mask_t: A tuple of [*, n_ph] tensors
+    :return: A float value
+    """
+    attention_positive, attention_negative = attention_t
+    mask_positive, mask_negative = mask_t
+
+    def _get_multimodal_similarity(attention, mask):
+        attention = torch.masked_fill(attention, mask=mask.unsqueeze(-1) == 0, value=0)
+        n = mask.sum(dim=-1)
+
+        return get_multimodal_similarity(attention, n)
+
+    multimodal_similarity_positive = torch.exp(_get_multimodal_similarity(attention_positive, mask_positive))
+    multimodal_similarity_negative = torch.exp(_get_multimodal_similarity(attention_negative, mask_negative))
+
+    loss = -torch.log(multimodal_similarity_positive / multimodal_similarity_negative)
+
+    return loss.sum()
 
 
 def loss_inversely_correlated(X, y):
@@ -346,3 +374,23 @@ def get_loss_direction(a, b):
     :return: A [d1, ..., dN] tensor with values in {-1, 0, 1}
     """
     return (a + b - b * (1 - a)) - 1
+
+
+def get_multimodal_similarity(attention, n, eps=1e-08):
+    """
+    Returns
+        1
+        - * sum max A_{j,z}
+        N    j   z
+
+    Note: attention tensor should be already masked
+
+    :param attention: A [*, d2, d1] tensor
+    :param n: A [*] tensor
+    :param eps: A float value
+    :return: A [*] tensor
+    """
+    attention, _ = torch.max(attention, dim=-1)  # [*, d2]
+    attention = torch.sum(attention, dim=-1)     # [*]
+
+    return attention / (n + eps)   # [*]

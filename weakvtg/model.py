@@ -63,6 +63,8 @@ class WeakVtgModel(Model):
         phrases_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
         noun_phrase = batch["noun_phrase"]                      # [b, n_np, n_np_len]
         noun_phrase_mask = batch["noun_phrase_mask"]            # [b, n_np, n_np_len]
+        noun_phrase_negative = batch["noun_phrase_negative"]    # [b, n_np, n_np_len]
+        noun_phrase_mask_negative = batch["noun_phrase_mask_negative"]  # [b, n_np, n_np_len]
         phrases_negative = batch["phrases_negative"]            # [b, n_ph-, n_words-]
         phrases_mask_negative = batch["phrases_mask_negative"]  # [b, n_ph-, n_words-]
         adjective = batch["adjective"]                          # [b, n_np, n_np_len]
@@ -88,6 +90,7 @@ class WeakVtgModel(Model):
         apply_attribute_similarity = self.apply_attribute_similarity
 
         _phrases_mask = get_synthetic_mask(phrases_mask)
+        _phrases_mask_negative = get_synthetic_mask(phrases_mask_negative)
         _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
 
         # extract positive/negative features
@@ -135,17 +138,24 @@ class WeakVtgModel(Model):
 
             return attribute_similarity
 
-        positive_concept_similarity = concept_similarity(noun_phrase, noun_phrase_mask, boxes_mask)  # [b, n_ph, n_box]
+        positive_concept_similarity = concept_similarity(noun_phrase, noun_phrase_mask, boxes_mask)
+        negative_concept_similarity = concept_similarity(noun_phrase_negative, noun_phrase_mask_negative, boxes_mask)
         attribute_similarity = compute_attribute_similarity()
 
         positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
         positive_logits = apply_concept_similarity(positive_logits, positive_concept_similarity)
-        positive_logits = apply_attribute_similarity(positive_logits, attribute_similarity)
+        # positive_logits = apply_attribute_similarity(positive_logits, attribute_similarity)  # TODO: temporary disabled
         positive_logits = torch.masked_fill(positive_logits, _phrases_mask == 0, value=-1)
         positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=-1)
 
-        return (positive_logits, torch.zeros_like(positive_logits)), \
-               (positive_concept_similarity, torch.zeros_like(positive_concept_similarity)), attribute_similarity
+        negative_logits = predict_logits(img_x_negative, phrases_x_negative, f_similarity=self.f_similarity)
+        negative_logits = apply_concept_similarity(negative_logits, negative_concept_similarity)
+        # negative_logits = apply_attribute_similarity(negative_logits, attribute_similarity)  # TODO: temporary disabled
+        negative_logits = torch.masked_fill(negative_logits, _phrases_mask_negative == 0, value=-1)
+        negative_logits = torch.masked_fill(negative_logits, _boxes_mask == 0, value=-1)
+
+        return (positive_logits, negative_logits), \
+               (positive_concept_similarity, negative_concept_similarity), attribute_similarity
 
 
 def predict_logits(img_x, phrases_x, f_similarity):

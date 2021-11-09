@@ -46,6 +46,7 @@ class VtgDataset(Dataset):
         # we retrieve only required data from negative example
         example["id_negative"] = example_negative["id"]
         example["phrases_negative"] = example_negative["phrases"]
+        example["noun_phrase_negative"] = example_negative["noun_phrase"]
 
         return example
 
@@ -85,6 +86,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_2_crd = batch["phrases_2_crd"]  # [b, n_ph, 4]
     phrases_2_crd_index = batch["phrases_2_crd_index"]  # [b, n_ph, 1]
     noun_phrase = batch["noun_phrase"]  # [b, n_np, n_np_len]
+    noun_phrase_negative = batch["noun_phrase_negative"]  # [b, n_np, n_np_len]
     adjective = batch["adjective"]  # [b, n_adj, adj_len]
     attribute_mask = batch["attribute_mask"]  # [b, n_box]
 
@@ -126,6 +128,7 @@ def collate_fn(batch, tokenizer, vocab):
     phrases_2_crd, _ = _get_padded_phrases_2_crd(phrases_2_crd)
     phrases_2_crd_index, _ = _get_padded_phrases_2_crd_index(phrases_2_crd_index)
     noun_phrase, noun_phrase_mask = get_phrases_tensor(noun_phrase, tokenizer=tokenizer, vocab=vocab)
+    noun_phrase_negative, noun_phrase_mask_negative = get_phrases_tensor(noun_phrase_negative, tokenizer=tokenizer, vocab=vocab)
     adjective, adjective_mask = get_phrases_tensor(adjective, tokenizer=tokenizer, vocab=vocab)
     attribute_mask = torch.tensor(attribute_mask)
 
@@ -152,6 +155,8 @@ def collate_fn(batch, tokenizer, vocab):
         "phrases_2_crd_index": phrases_2_crd_index,
         "noun_phrase": noun_phrase,
         "noun_phrase_mask": noun_phrase_mask,
+        "noun_phrase_negative": noun_phrase_negative,
+        "noun_phrase_mask_negative": noun_phrase_mask_negative,
         "adjective": adjective,
         "adjective_mask": adjective_mask,
         "attribute_mask": attribute_mask,
