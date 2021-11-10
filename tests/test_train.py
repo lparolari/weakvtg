@@ -8,6 +8,7 @@ from weakvtg.train import train, epoch
 class MockTensor:
     def __init__(self, value):
         self.value = value
+        self.grad = None
 
     def __format__(self, format_spec):
         return f"{self.value:{format_spec}}"
@@ -33,7 +34,9 @@ def loader():
 
 @pytest.fixture
 def model():
-    return mock.Mock()
+    m = mock.Mock()
+    m.parameters = lambda: [MockTensor(0.12), MockTensor(0.74)]
+    return m
 
 
 @pytest.fixture

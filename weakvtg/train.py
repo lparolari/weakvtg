@@ -37,6 +37,7 @@ def epoch(loader, model, optimizer, criterion, train=True):
 
         if train:
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.)
             optimizer.step()
 
         # computing some statistics

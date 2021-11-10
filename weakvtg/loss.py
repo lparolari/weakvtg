@@ -150,7 +150,7 @@ def loss_maf(attention_t, mask_t):
 
     loss = -torch.log(multimodal_similarity_positive / multimodal_similarity_negative)
 
-    return loss.sum()
+    return loss.mean()
 
 
 def loss_inversely_correlated(X, y):
