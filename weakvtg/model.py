@@ -149,7 +149,7 @@ class WeakVtgModel(Model):
         positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=-1)
 
         negative_logits = predict_logits(img_x_negative, phrases_x_negative, f_similarity=self.f_similarity)
-        negative_logits = apply_concept_similarity(negative_logits, negative_concept_similarity)
+        # negative_logits = apply_concept_similarity(negative_logits, negative_concept_similarity)
         # negative_logits = apply_attribute_similarity(negative_logits, attribute_similarity)  # TODO: temporary disabled
         negative_logits = torch.masked_fill(negative_logits, _phrases_mask_negative == 0, value=-1)
         negative_logits = torch.masked_fill(negative_logits, _boxes_mask == 0, value=-1)
