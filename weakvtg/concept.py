@@ -1,5 +1,7 @@
 import torch
 
+from weakvtg.utils import expand
+
 
 def get_concept_similarity(phrase_embedding_t, box_class_embedding_t, f_aggregate, f_similarity, f_activation):
     """
@@ -23,8 +25,8 @@ def get_concept_similarity(phrase_embedding_t, box_class_embedding_t, f_aggregat
 
     phrase_embedding = f_aggregate(phrase_embedding_t, box_class_embedding_t, dim=-2, f_similarity=f_similarity)
 
-    box_class_embedding = box_class_embedding.unsqueeze(-3).repeat(1, n_ph, 1, 1)
-    phrase_embedding = phrase_embedding.unsqueeze(-2).repeat(1, 1, n_box, 1)
+    box_class_embedding = expand(box_class_embedding, dim=-3, size=n_ph)  #.unsqueeze(-3).repeat(1, n_ph, 1, 1)
+    phrase_embedding = expand(phrase_embedding, dim=-2, size=n_box)  #.unsqueeze(-2).repeat(1, 1, n_box, 1)
 
     similarity = f_similarity(box_class_embedding, phrase_embedding, dim=-1)
 

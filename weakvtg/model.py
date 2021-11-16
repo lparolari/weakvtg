@@ -8,6 +8,7 @@ import torch.nn.utils.rnn as rnn
 
 from weakvtg import anchors
 from weakvtg.mask import get_synthetic_mask
+from weakvtg.utils import expand, invert
 
 
 class Model(nn.Module):
@@ -94,68 +95,72 @@ class WeakVtgModel(Model):
         _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
 
         # extract positive/negative features
-        img_x_positive = get_image_features(boxes, boxes_features)
-        img_x_positive = _get_image_representation(img_x_positive)
-        img_x_positive = img_x_positive.unsqueeze(-3).repeat(1, n_ph_pos, 1, 1)
+        img_x = get_image_features(boxes, boxes_features)
+        img_x = _get_image_representation(img_x)
+        img_x = expand(img_x, dim=-3, size=n_ph_pos)
 
-        phrases_x_positive = _get_phrases_features(phrases, phrases_mask)
-        phrases_x_positive = phrases_x_positive.unsqueeze(-2).repeat(1, 1, n_boxes, 1)
+        phrases_x = _get_phrases_features(phrases, phrases_mask)
+        phrases_x = expand(phrases_x, dim=-2, size=n_boxes)
 
-        img_x_negative = get_image_features(boxes, boxes_features)
-        img_x_negative = _get_image_representation(img_x_negative)
-        img_x_negative = img_x_negative.unsqueeze(-3).repeat(1, n_ph_neg, 1, 1)
+        label_e = _get_classes_embedding(box_class)
+        noun_e = _get_phrases_embedding(noun_phrase)
 
-        phrases_x_negative = _get_phrases_features(phrases_negative, phrases_mask_negative)
-        phrases_x_negative = phrases_x_negative.unsqueeze(-2).repeat(1, 1, n_boxes, 1)
+        # img_x_negative = get_image_features(boxes, boxes_features)
+        # img_x_negative = _get_image_representation(img_x_negative)
+        # img_x_negative = img_x_negative.unsqueeze(-3).repeat(1, n_ph_neg, 1, 1)
+        #
+        # phrases_x_negative = _get_phrases_features(phrases_negative, phrases_mask_negative)
+        # phrases_x_negative = phrases_x_negative.unsqueeze(-2).repeat(1, 1, n_boxes, 1)
 
         # compute positive/negative logits and mask
         # scale logits given classes similarity
 
-        def concept_similarity(phrase, phrase_mask, boxes_mask):
-            phrase_mask = phrase_mask.unsqueeze(-1)
-            boxes_mask = boxes_mask.unsqueeze(-1)
-            box_class_embedding = _get_classes_embedding(box_class)
-            phrase_embedding = _get_phrases_embedding(phrase)
-            return _get_concept_similarity((phrase_embedding, phrase_mask), (box_class_embedding, boxes_mask))
+        # def concept_similarity(phrase, phrase_mask, boxes_mask):
+        #     phrase_mask = phrase_mask.unsqueeze(-1)
+        #     boxes_mask = boxes_mask.unsqueeze(-1)
+        #     box_class_embedding = _get_classes_embedding(box_class)
+        #     phrase_embedding = _get_phrases_embedding(phrase)
+        #     return _get_concept_similarity((phrase_embedding, phrase_mask), (box_class_embedding, boxes_mask))
+        #
+        # def compute_attribute_similarity():
+        #     adjective_embedding = _get_phrases_embedding(adjective)
+        #     attribute_embedding = _get_attributes_embedding(box_attribute)
+        #
+        #     adjective_embedding_mask = adjective_mask.unsqueeze(-1)
+        #     attribute_embedding_mask = box_attribute_mask.unsqueeze(-1)
+        #
+        #     attribute_similarity = _get_attribute_similarity(
+        #         (adjective_embedding, adjective_embedding_mask),
+        #         (attribute_embedding, attribute_embedding_mask)
+        #     )
+        #
+        #     _box_attribute_mask = box_attribute_mask.unsqueeze(-2)
+        #     _adjective_mask = adjective_mask.sum(dim=-1, keepdims=True).to(torch.bool)
+        #
+        #     attribute_similarity = torch.masked_fill(attribute_similarity, mask=_box_attribute_mask == 0, value=-1)
+        #     attribute_similarity = torch.masked_fill(attribute_similarity, mask=_adjective_mask == 0, value=-1)
+        #
+        #     return attribute_similarity
 
-        def compute_attribute_similarity():
-            adjective_embedding = _get_phrases_embedding(adjective)
-            attribute_embedding = _get_attributes_embedding(box_attribute)
+        # positive_concept_similarity = concept_similarity(noun_phrase, noun_phrase_mask, boxes_mask)
+        # negative_concept_similarity = concept_similarity(noun_phrase_negative, noun_phrase_mask_negative, boxes_mask)
+        # attribute_similarity = compute_attribute_similarity()
 
-            adjective_embedding_mask = adjective_mask.unsqueeze(-1)
-            attribute_embedding_mask = box_attribute_mask.unsqueeze(-1)
+        noun_mask = get_batched_batch(noun_phrase_mask.unsqueeze(-1))
+        box_mask = get_batched_batch(boxes_mask.unsqueeze(-1))
+        img_x = get_batched_batch(img_x)
+        phrase_x = get_batched_batch(phrases_x)
+        label_e = get_batched_batch(label_e)
+        noun_e = get_batched_batch(noun_e)
 
-            attribute_similarity = _get_attribute_similarity(
-                (adjective_embedding, adjective_embedding_mask),
-                (attribute_embedding, attribute_embedding_mask)
-            )
+        concept_sim = _get_concept_similarity((noun_e, noun_mask), (label_e, box_mask))
 
-            _box_attribute_mask = box_attribute_mask.unsqueeze(-2)
-            _adjective_mask = adjective_mask.sum(dim=-1, keepdims=True).to(torch.bool)
+        prediction = predict_logits(img_x, phrase_x, f_similarity=self.f_similarity)
+        prediction = apply_concept_similarity(prediction, concept_sim)
+        prediction = torch.masked_fill(prediction, _phrases_mask == 0, value=-1)
+        prediction = torch.masked_fill(prediction, _boxes_mask == 0, value=-1)
 
-            attribute_similarity = torch.masked_fill(attribute_similarity, mask=_box_attribute_mask == 0, value=-1)
-            attribute_similarity = torch.masked_fill(attribute_similarity, mask=_adjective_mask == 0, value=-1)
-
-            return attribute_similarity
-
-        positive_concept_similarity = concept_similarity(noun_phrase, noun_phrase_mask, boxes_mask)
-        negative_concept_similarity = concept_similarity(noun_phrase_negative, noun_phrase_mask_negative, boxes_mask)
-        attribute_similarity = compute_attribute_similarity()
-
-        positive_logits = predict_logits(img_x_positive, phrases_x_positive, f_similarity=self.f_similarity)
-        positive_logits = apply_concept_similarity(positive_logits, positive_concept_similarity)
-        # positive_logits = apply_attribute_similarity(positive_logits, attribute_similarity)  # TODO: temporary disabled
-        positive_logits = torch.masked_fill(positive_logits, _phrases_mask == 0, value=-1)
-        positive_logits = torch.masked_fill(positive_logits, _boxes_mask == 0, value=-1)
-
-        negative_logits = predict_logits(img_x_negative, phrases_x_negative, f_similarity=self.f_similarity)
-        negative_logits = apply_concept_similarity(negative_logits, negative_concept_similarity)
-        # negative_logits = apply_attribute_similarity(negative_logits, attribute_similarity)  # TODO: temporary disabled
-        negative_logits = torch.masked_fill(negative_logits, _phrases_mask_negative == 0, value=-1)
-        negative_logits = torch.masked_fill(negative_logits, _boxes_mask == 0, value=-1)
-
-        return (positive_logits, negative_logits), \
-               (positive_concept_similarity, negative_concept_similarity), attribute_similarity
+        return prediction,
 
 
 def predict_logits(img_x, phrases_x, f_similarity):
@@ -298,6 +303,20 @@ def apply_concept_similarity_mean(logits, concept_similarity, *, lam=.5, **__):
         lam * logits + (1 - lam) * concept_similarity
     """
     return lam * logits + (1 - lam) * concept_similarity
+
+
+def get_batched_batch(x, dim=0):
+    """
+    Return a batched version of a batch, i.e., for each batch, repeat the batch.
+    :param x: A [d1, d2, ..., dN] tensor
+    :param dim: An integer dimension
+    :return: A [d1, d2, ..., di-1, di, di, di+1, ..., dn] tensor where di = d[dim]
+    """
+    return expand(x, dim=dim, size=x.size(dim))
+
+
+def get_batch_example_mask(x, dim=0):
+    return torch.eye(x.size(dim))
 
 
 def create_phrases_embedding_network(vocab, pretrained_embeddings, *, embedding_size=300, freeze=False,
