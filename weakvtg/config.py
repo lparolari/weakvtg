@@ -45,6 +45,8 @@ __defaults = {
     "attribute_similarity_direction_threshold": 0.,
 }
 
+__device = None
+
 
 def get_config(config, defaults=None):
     """
@@ -74,3 +76,12 @@ def make_options(name: str, options: Dict[str, Any]):
         return functools.partial(options[option], **params.get(option, {}))
 
     return get_option
+
+
+def set_global_device(device):
+    global __device
+    __device = device
+
+
+def get_global_device():
+    return __device

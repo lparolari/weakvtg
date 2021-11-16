@@ -1,5 +1,6 @@
 import torch
 
+from weakvtg.config import get_global_device
 from weakvtg.utils import invert
 
 
@@ -17,7 +18,7 @@ def get_ident(size, n_dims, dim=-2):
     dims[dim] = size
     dims[dim + 1] = size
 
-    return torch.eye(size).view(*dims)
+    return torch.eye(size, device=get_global_device()).view(*dims)
 
 
 def get_ones(size, n_dims, dim=-2):
@@ -31,7 +32,7 @@ def get_ones(size, n_dims, dim=-2):
     """
     dims = [1] * n_dims
     dims[dim] = size
-    return torch.ones(size).view(dims)
+    return torch.ones(size, device=get_global_device()).view(dims)
 
 
 def get_masked(x, mask):

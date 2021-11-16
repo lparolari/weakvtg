@@ -11,7 +11,7 @@ import torch.utils.data as torchdata
 import torchtext
 import wandb
 
-from weakvtg.config import get_config, make_options
+from weakvtg.config import get_config, make_options, set_global_device
 from weakvtg.classes import get_classes, load_classes
 from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss, loss_inversely_correlated, loss_inversely_correlated_box_class_count_scaled, \
@@ -216,6 +216,8 @@ def main():
     attribute_similarity_apply_weight = config["attribute_similarity_apply_weight"]
 
     device = torch.device(device_name)
+    set_global_device(device)
+
 
     wandb.init(project='weakvtg', entity='vtkel-solver', mode="online" if args.use_wandb else "disabled")
     wandb.config.update(config)
