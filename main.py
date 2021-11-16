@@ -11,7 +11,7 @@ import torch.utils.data as torchdata
 import torchtext
 import wandb
 
-from weakvtg.config import get_config, make_options
+from weakvtg.config import get_config, make_options, set_global_device
 from weakvtg.classes import get_classes, load_classes
 from weakvtg.dataset import VtgDataset, collate_fn, process_example
 from weakvtg.loss import WeakVtgLoss, loss_inversely_correlated, loss_inversely_correlated_box_class_count_scaled, \
@@ -216,6 +216,7 @@ def main():
     attribute_similarity_apply_weight = config["attribute_similarity_apply_weight"]
 
     device = torch.device(device_name)
+    set_global_device(device)
 
     wandb.init(project='weakvtg', entity='vtkel-solver', mode="online" if args.use_wandb else "disabled")
     wandb.config.update(config)
@@ -250,10 +251,12 @@ def main():
                                                     num_layers=text_semantic_num_layers, bidirectional=False,
                                                     batch_first=False)
     phrases_recurrent_net = init_rnn(phrases_recurrent_net)
+    phrases_recurrent_net.to(device)
 
     f_image_projection_net = make_image_projection_net(image_projection_net)
     image_embedding_net = f_image_projection_net(image_embedding_size, image_projection_size,
                                                  n_hidden_layer=image_projection_hidden_layers)
+    image_embedding_net.to(device)
 
     _get_classes_embedding = functools.partial(get_phrases_embedding, embedding_network=classes_embedding_net)
     _get_attributes_embedding = functools.partial(get_phrases_embedding, embedding_network=attributes_embedding_net)
@@ -325,6 +328,8 @@ def main():
         get_predicted_box=_get_predicted_box,
         f_loss=make_f_loss(loss)
     )
+
+    # model.to(device) ???
 
     # restore model, if needed
     start_epoch = 0

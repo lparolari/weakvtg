@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import torch.nn.utils.rnn as rnn
 
 from weakvtg import anchors
+from weakvtg.config import get_global_device
 from weakvtg.mask import get_synthetic_mask
 from weakvtg.utils import expand, invert
 
@@ -278,16 +279,14 @@ def get_batched_batch(x, dim=0):
     return expand(x, dim=dim, size=x.size(dim))
 
 
-def get_batch_example_mask(x, dim=0):
-    return torch.eye(x.size(dim))
-
-
 def create_phrases_embedding_network(vocab, pretrained_embeddings, *, embedding_size=300, freeze=False,
                                      f_spell_correction=None):
     import re
     import numpy as np
 
     from weakvtg.utils import identity
+
+    device = get_global_device()
 
     if f_spell_correction is None:
         f_spell_correction = identity
@@ -301,7 +300,7 @@ def create_phrases_embedding_network(vocab, pretrained_embeddings, *, embedding_
     out_of_vocabulary = 0
     out_of_vocabulary_words = []
 
-    embedding_matrix_values = torch.zeros((vocab_size + 1, embedding_size), requires_grad=(not freeze))
+    embedding_matrix_values = torch.zeros((vocab_size + 1, embedding_size), requires_grad=(not freeze), device=device)
 
     pretrained_words = pretrained_embeddings.stoi.keys()
 

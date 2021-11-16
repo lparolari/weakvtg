@@ -9,6 +9,7 @@ import wandb
 
 from weakvtg import iox
 from weakvtg.classes import get_class
+from weakvtg.config import get_global_device
 from weakvtg.mask import get_synthetic_mask
 from weakvtg.prettyprint import pp
 from weakvtg.timeit import get_fancy_eta, get_fancy_time, get_hms, get_delta
@@ -29,6 +30,9 @@ def epoch(loader, model, optimizer, criterion, train=True):
     start_time = time.time()
 
     for i, batch in enumerate(loader):
+        for key, value in batch.items():
+            batch[key] = value.to(get_global_device())
+
         optimizer.zero_grad()
 
         output = model(batch)
