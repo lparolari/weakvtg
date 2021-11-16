@@ -56,27 +56,13 @@ class WeakVtgModel(Model):
     def forward(self, batch):
         pred_n_boxes = batch["pred_n_boxes"]                    # [b]
         boxes = batch["pred_boxes"]                             # [b, n_boxes, 4]
-        boxes_mask = batch["pred_boxes_mask"]                   # [b, n_boxes]
+        box_mask = batch["pred_boxes_mask"]                   # [b, n_boxes]
         boxes_features = batch["pred_boxes_features"]           # [b, n_boxes, 2048]
         boxes_class_prob = batch["pred_cls_prob"]               # [b, n_boxes, n_class]
         box_class = get_box_class(boxes_class_prob)             # [b, n_box]
-        phrases = batch["phrases"]                              # [b, n_ph+, n_words+]
-        phrases_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
-        noun_phrase = batch["noun_phrase"]                      # [b, n_np, n_np_len]
-        noun_phrase_mask = batch["noun_phrase_mask"]            # [b, n_np, n_np_len]
-        noun_phrase_negative = batch["noun_phrase_negative"]    # [b, n_np, n_np_len]
-        noun_phrase_mask_negative = batch["noun_phrase_mask_negative"]  # [b, n_np, n_np_len]
-        phrases_negative = batch["phrases_negative"]            # [b, n_ph-, n_words-]
-        phrases_mask_negative = batch["phrases_mask_negative"]  # [b, n_ph-, n_words-]
-        adjective = batch["adjective"]                          # [b, n_np, n_np_len]
-        adjective_mask = batch["adjective_mask"]                # [b, n_np, n_np_len]
-        box_attribute_prob = batch["pred_attr_prob"]            # [b, n_box, n_attr]
-        box_attribute = get_box_attribute(box_attribute_prob)   # [b, n_box]
-        box_attribute_mask = batch["attribute_mask"]            # [b, n_box]
-
-        n_boxes = pred_n_boxes[0]
-        n_ph_pos = phrases.size()[1]
-        n_ph_neg = phrases_negative.size()[1]
+        phrase = batch["phrases"]                              # [b, n_ph+, n_words+]
+        phrase_mask = batch["phrases_mask"]                    # [b, n_ph+, n_words+]
+        synth_mask = get_synthetic_mask(phrase_mask)
 
         _get_concept_similarity = self.get_concept_similarity
         _get_attribute_similarity = self.get_attribute_similarity
@@ -90,75 +76,52 @@ class WeakVtgModel(Model):
         apply_concept_similarity = self.apply_concept_similarity
         apply_attribute_similarity = self.apply_attribute_similarity
 
-        _phrases_mask = get_synthetic_mask(phrases_mask)
-        _phrases_mask_negative = get_synthetic_mask(phrases_mask_negative)
-        _boxes_mask = boxes_mask.squeeze(-1).unsqueeze(-2)  # [b, 1, n_boxes]
-
         # extract positive/negative features
         img_x = get_image_features(boxes, boxes_features)
-        img_x = _get_image_representation(img_x)
-        img_x = expand(img_x, dim=-3, size=n_ph_pos)
+        img_x = _get_image_representation(img_x)  # [b, n_box, feat_box]
 
-        phrases_x = _get_phrases_features(phrases, phrases_mask)
-        phrases_x = expand(phrases_x, dim=-2, size=n_boxes)
+        phrase_x = _get_phrases_features(phrase, phrase_mask)  # [b, n_ph, feat_ph]
 
-        label_e = _get_classes_embedding(box_class)
-        noun_e = _get_phrases_embedding(noun_phrase)
+        b = img_x.size()[-3]
+        n_box = img_x.size()[-2]
+        feat_box = img_x.size()[-1]
+        n_ph = phrase_x.size()[-2]
+        feat_ph = phrase_x.size()[-1]
 
-        # img_x_negative = get_image_features(boxes, boxes_features)
-        # img_x_negative = _get_image_representation(img_x_negative)
-        # img_x_negative = img_x_negative.unsqueeze(-3).repeat(1, n_ph_neg, 1, 1)
+        img_x = img_x.view(-1, feat_box)     # [b*n_box, feat_box]
+        img_x = img_x.unsqueeze(-3)          # [1, b*n_box, feat_box]
+        img_x = img_x.repeat(b, 1, 1)        # [b, b*n_box, feat_box]
+        img_x = img_x.unsqueeze(-3)          # [b, 1, b*n_box, feat_box]
+        img_x = img_x.repeat(1, n_ph, 1, 1)  # [b, n_ph, b*n_box, feat_box]
+
+        phrase_x = phrase_x.unsqueeze(-2)             # [b, n_ph, 1, feat_ph]
+        phrase_x = phrase_x.repeat(1, 1, b*n_box, 1)  # [b, n_ph, b*n_box, feat_ph]
+
+        prediction = predict_logits(img_x, phrase_x, f_similarity=self.f_similarity)  # [b, n_ph, b*n_box]
+        prediction = prediction.view(b, n_ph, b, n_box)      # [b, n_ph, b, n_box]
+        prediction = prediction.transpose(dim0=-3, dim1=-2)  # [b, b, n_ph, n_box]
+
+        synth_mask_ = synth_mask.view(1, b, n_ph, 1)
+        box_mask_ = box_mask.view(1, b, 1, n_box)
+
+        prediction = torch.masked_fill(prediction, synth_mask_ == 0, value=-1)
+        prediction = torch.masked_fill(prediction, box_mask_ == 0, value=-1)
+
+        # label_e = _get_classes_embedding(box_class)
+        # noun_e = _get_phrases_embedding(noun_phrase)
         #
-        # phrases_x_negative = _get_phrases_features(phrases_negative, phrases_mask_negative)
-        # phrases_x_negative = phrases_x_negative.unsqueeze(-2).repeat(1, 1, n_boxes, 1)
-
-        # compute positive/negative logits and mask
-        # scale logits given classes similarity
-
-        # def concept_similarity(phrase, phrase_mask, boxes_mask):
-        #     phrase_mask = phrase_mask.unsqueeze(-1)
-        #     boxes_mask = boxes_mask.unsqueeze(-1)
-        #     box_class_embedding = _get_classes_embedding(box_class)
-        #     phrase_embedding = _get_phrases_embedding(phrase)
-        #     return _get_concept_similarity((phrase_embedding, phrase_mask), (box_class_embedding, boxes_mask))
         #
-        # def compute_attribute_similarity():
-        #     adjective_embedding = _get_phrases_embedding(adjective)
-        #     attribute_embedding = _get_attributes_embedding(box_attribute)
+        # noun_mask = get_batched_batch(noun_phrase_mask.unsqueeze(-1))
+        # box_mask = get_batched_batch(boxes_mask.unsqueeze(-1))
+        # img_x = get_batched_batch(img_x)
+        # phrase_x = get_batched_batch(phrases_x)
+        # label_e = get_batched_batch(label_e)
+        # noun_e = get_batched_batch(noun_e)
         #
-        #     adjective_embedding_mask = adjective_mask.unsqueeze(-1)
-        #     attribute_embedding_mask = box_attribute_mask.unsqueeze(-1)
+        # concept_sim = _get_concept_similarity((noun_e, noun_mask), (label_e, box_mask))
         #
-        #     attribute_similarity = _get_attribute_similarity(
-        #         (adjective_embedding, adjective_embedding_mask),
-        #         (attribute_embedding, attribute_embedding_mask)
-        #     )
-        #
-        #     _box_attribute_mask = box_attribute_mask.unsqueeze(-2)
-        #     _adjective_mask = adjective_mask.sum(dim=-1, keepdims=True).to(torch.bool)
-        #
-        #     attribute_similarity = torch.masked_fill(attribute_similarity, mask=_box_attribute_mask == 0, value=-1)
-        #     attribute_similarity = torch.masked_fill(attribute_similarity, mask=_adjective_mask == 0, value=-1)
-        #
-        #     return attribute_similarity
-
-        # positive_concept_similarity = concept_similarity(noun_phrase, noun_phrase_mask, boxes_mask)
-        # negative_concept_similarity = concept_similarity(noun_phrase_negative, noun_phrase_mask_negative, boxes_mask)
-        # attribute_similarity = compute_attribute_similarity()
-
-        noun_mask = get_batched_batch(noun_phrase_mask.unsqueeze(-1))
-        box_mask = get_batched_batch(boxes_mask.unsqueeze(-1))
-        img_x = get_batched_batch(img_x)
-        phrase_x = get_batched_batch(phrases_x)
-        label_e = get_batched_batch(label_e)
-        noun_e = get_batched_batch(noun_e)
-
-        concept_sim = _get_concept_similarity((noun_e, noun_mask), (label_e, box_mask))
-
-        prediction = predict_logits(img_x, phrase_x, f_similarity=self.f_similarity)
-        prediction = apply_concept_similarity(prediction, concept_sim)
-        prediction = torch.masked_fill(prediction, _phrases_mask == 0, value=-1)
-        prediction = torch.masked_fill(prediction, _boxes_mask == 0, value=-1)
+        # prediction = predict_logits(img_x, phrase_x, f_similarity=self.f_similarity)
+        # prediction = apply_concept_similarity(prediction, concept_sim)
 
         return prediction,
 

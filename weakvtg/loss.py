@@ -65,7 +65,7 @@ class WeakVtgLoss(nn.Module):
         prediction_p = get_positive(prediction).squeeze(0)          # [b, n_ph, n_box]
         prediction_n = get_negative(prediction).view(b, -1, n_box)  # [b, b*n_ph, n_box]
 
-        L = loss_maf((prediction_p, prediction_n), (synth_mask_p, synth_mask_n), sim_mm)
+        L = loss_maf(prediction)#(prediction_p, prediction_n), (synth_mask_p, synth_mask_n), sim_mm)
 
         def get_validation(boxes, boxes_gt, scores, mask):
             with torch.no_grad():
@@ -133,7 +133,7 @@ def arloss(prediction, prediction_mask, box_mask, box_class_count, loss_directio
     return loss
 
 
-def loss_maf(prediction_t, mask_t, f_similarity):
+def loss_maf(prediction):  #prediction_t, mask_t, f_similarity):
     """
     Returns
                           sum_q e^sim(I, q)
@@ -151,15 +151,15 @@ def loss_maf(prediction_t, mask_t, f_similarity):
     :param f_similarity: A multimodal similarity function
     :return: A float value
     """
-    prediction_p, prediction_n = prediction_t
-    mask_p, mask_n = mask_t
+    score = torch.max(prediction, dim=-1)[0]  # [b, b, n_ph]
+    score = torch.exp(score)                  # [b, b, n_ph]
+    score = torch.sum(score, dim=-1)          # [b, b]
 
-    eps = 1e-08
+    score_p = get_positive(score)  # [1, b]
+    score_n = get_negative(score)  # [b, b]
+    score_n = score_n.sum(dim=-2)
 
-    sim_mm_p = (f_similarity(prediction_p).exp() * mask_p).sum(dim=-1)
-    sim_mm_n = (f_similarity(prediction_n).exp() * mask_n).sum(dim=-1)
-
-    loss = sim_mm_p / (sim_mm_n + eps)
+    loss = score_p / score_n
     loss = -torch.log(loss)
 
     return loss.mean()
