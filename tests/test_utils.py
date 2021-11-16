@@ -1,4 +1,4 @@
-from weakvtg.utils import get_batch_size, percent, pivot, identity, map_dict, expand
+from weakvtg.utils import get_batch_size, percent, pivot, identity, map_dict, expand, invert
 
 
 def test_get_batch_size():
@@ -39,3 +39,11 @@ def test_expand():
     size = 2
 
     assert torch.equal(expand(x, dim, size), x.unsqueeze(-2).repeat(2, 1))
+
+
+def test_invert():
+    import torch
+
+    x = torch.rand(2, 3, 4, 5)
+
+    assert invert(x).shape == (5, 4, 3, 2)

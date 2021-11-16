@@ -53,3 +53,7 @@ def expand(x, dim, size):
     dims[dim] = size
 
     return x.repeat(*dims)
+
+
+def invert(x):
+    return x.permute(list(range(x.dim()))[::-1])
