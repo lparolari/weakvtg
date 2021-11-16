@@ -1,31 +1,33 @@
 import pytest
 import torch
+from math import log, exp
 
-from weakvtg.loss import get_multimodal_similarity, loss_maf
-
-
-def test_get_multimodal_similarity():
-    x = torch.rand(2, 3)
-    m = torch.ones(2)
-
-    assert list(get_multimodal_similarity(x, m.sum(dim=-1)).size()) == []
-    assert torch.mean(torch.max(x, dim=-1)[0], dim=-1)
+from weakvtg.loss import loss_maf, sim_mm
+from weakvtg.matrix import get_positive, get_negative
 
 
-def test_get_multimodal_similarity_given_mask():
-    x = torch.rand(3, 3)
-    m = torch.tensor([1, 1, 0], dtype=torch.bool)
+def test_t1():
+    x = torch.tensor([[[[0.4345, 0.6505, 0.3944]],
+                       [[0.0253, 0.4157, 0.5813]]],
+                      [[[0.9978, 0.1090, 0.3867]],
+                       [[0.3077, 0.3430, 0.0620]]]])  # [2, 2, 1, 3]
 
-    x = torch.masked_fill(x, mask=m.unsqueeze(-1) == 0, value=0)
+    mask = torch.ones(2, 2)
 
-    assert list(get_multimodal_similarity(x, m.sum(dim=-1)).size()) == []
-    assert torch.sum(torch.max(x, dim=-1)[0], dim=-1) / 2
+    b = x.size(0)
+    n_box = x.size(-1)
 
+    prediction_p = get_positive(x).squeeze(0)
+    prediction_n = get_negative(x).view(b, -1, n_box)
+    mask_p = get_positive(mask).squeeze(0).unsqueeze(-1)
+    mask_n = get_negative(mask)
 
-def test_loss_maf():
-    from math import log, exp
-    a_pos, mask_pos = torch.tensor([[.1, .3], [.2, .1]]), torch.tensor([1, 1])
-    a_neg, mask_neg = torch.tensor([[.5], [.7], [.0]]), torch.tensor([1, 1, 0])
+    L_actual = loss_maf((prediction_p, prediction_n), (mask_p, mask_n), sim_mm)
 
-    assert loss_maf((a_pos, a_neg), (mask_pos, mask_neg), eps=0).item() == \
-           pytest.approx(-log(exp((.3 + .2) / 2) / exp((.5 + .7) / 2)))
+    x1 = -log(exp(0.6505) / exp(0.5813))
+    x2 = -log(exp(0.3430) / exp(0.9978))
+
+    L_expected = (x1 + x2) / 2
+
+    assert L_expected == pytest.approx(0.2928)
+    assert L_actual.item() == pytest.approx(L_expected)
