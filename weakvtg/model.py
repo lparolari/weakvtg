@@ -108,21 +108,16 @@ class WeakVtgModel(Model):
         prediction = torch.masked_fill(prediction, synth_mask_ == 0, value=-1)
         prediction = torch.masked_fill(prediction, box_mask_ == 0, value=-1)
 
-        # label_e = _get_classes_embedding(box_class)
-        # noun_e = _get_phrases_embedding(noun_phrase)
-        #
-        #
-        # noun_mask = get_batched_batch(noun_phrase_mask.unsqueeze(-1))
-        # box_mask = get_batched_batch(boxes_mask.unsqueeze(-1))
-        # img_x = get_batched_batch(img_x)
-        # phrase_x = get_batched_batch(phrases_x)
-        # label_e = get_batched_batch(label_e)
-        # noun_e = get_batched_batch(noun_e)
-        #
-        # concept_sim = _get_concept_similarity((noun_e, noun_mask), (label_e, box_mask))
-        #
-        # prediction = predict_logits(img_x, phrase_x, f_similarity=self.f_similarity)
-        # prediction = apply_concept_similarity(prediction, concept_sim)
+        # concept sim
+        label_e = _get_classes_embedding(box_class)
+        phrase_e = _get_phrases_embedding(phrase)
+        phrase_mask_ = phrase_mask.unsqueeze(-1)
+        box_mask_ = box_mask.unsqueeze(-1)
+
+        concept_sim = _get_concept_similarity((phrase_e, phrase_mask_), (label_e, box_mask_))
+        concept_sim = concept_sim.unsqueeze(-4)
+
+        prediction = apply_concept_similarity(prediction, concept_sim)
 
         return prediction,
 
