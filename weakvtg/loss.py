@@ -151,22 +151,50 @@ def loss_maf(prediction):  #prediction_t, mask_t, f_similarity):
     :param f_similarity: A multimodal similarity function
     :return: A float value
     """
-    score = torch.max(prediction, dim=-1)[0]  # [b, b, n_ph]
-    score = torch.exp(score)                  # [b, b, n_ph]
-    score = torch.sum(score, dim=-1)          # [b, b]
+    prediction_p = get_positive(prediction)  # [1, b, n_ph, n_box]
+    score_p, index = sim_mm_p(prediction_p)  # [1, b, n_ph], [1, b, n_ph]
 
-    score_p = get_positive(score)  # [1, b]
-    score_n = get_negative(score)  # [b, b]
-    score_n = score_n.sum(dim=-2)
+    prediction_n = get_negative(prediction)  # [b, b, n_ph, n_box]
+    score_n = sim_mm_n(prediction_n, index)  # [1, b, n_ph]
 
-    loss = score_p / score_n
-    loss = -torch.log(loss)
+    loss = -score_p + score_n
 
     return loss.mean()
 
 
 def sim_mm(prediction):
     return torch.max(prediction, dim=-1)[0]
+
+
+def sim_mm_p(prediction):
+    """
+    Returns maximum values over last dim and relative index.
+
+    :param prediction: A [1, b, n_ph, n_box] tensor
+    :return: A tuple [1, b, n_ph], [1, b, n_ph] tensor
+    """
+    return torch.max(prediction, dim=-1)   # [1, b, n_ph]
+
+
+def sim_mm_n(prediction, index):
+    """
+    Returns maximum value on `prediction` fixing box index in `index`.
+
+    :param prediction: A [b, b, n_ph, n_box] tensor
+    :param index: A [1, b, n_ph] long tensor
+    :return:
+    """
+    from weakvtg.config import get_global_device
+    def ones(*args, **kwargs): return torch.ones(*args, device=get_global_device(), **kwargs)
+
+    b = prediction.size()[0]
+
+    score_n = prediction.max(-2)[0]       # [b, b, n_box]
+    score_n = score_n.permute(0, 2, 1)    # [b, n_box, b]
+    score_n = score_n @ ones(b, 1)        # [b, n_box, 1]
+    score_n = score_n.permute(2, 0, 1)    # [1, b, n_box]
+    score_n = score_n.gather(-1, index)   # [1, b, n_ph]
+    return score_n
 
 
 def loss_inversely_correlated(X, y):
