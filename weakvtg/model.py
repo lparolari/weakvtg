@@ -102,22 +102,26 @@ class WeakVtgModel(Model):
         prediction = prediction.view(b, n_ph, b, n_box)      # [b, n_ph, b, n_box]
         prediction = prediction.transpose(dim0=-3, dim1=-2)  # [b, b, n_ph, n_box]
 
-        synth_mask_ = synth_mask.view(1, b, n_ph, 1)
-        box_mask_ = box_mask.view(1, b, 1, n_box)
-
-        prediction = torch.masked_fill(prediction, synth_mask_ == 0, value=-1)
-        prediction = torch.masked_fill(prediction, box_mask_ == 0, value=-1)
-
         # concept sim
         label_e = _get_classes_embedding(box_class)
         phrase_e = _get_phrases_embedding(phrase)
         phrase_mask_ = phrase_mask.unsqueeze(-1)
         box_mask_ = box_mask.unsqueeze(-1)
 
-        concept_sim = _get_concept_similarity((phrase_e, phrase_mask_), (label_e, box_mask_))
-        concept_sim = concept_sim.unsqueeze(-4)
+        concept_sim = _get_concept_similarity((phrase_e, phrase_mask_), (label_e, box_mask_))  # [b, n_ph, n_box]
+
+        concept_sim = concept_sim.unsqueeze(-2)                # [b, n_ph, 1, n_box]
+        concept_sim = concept_sim.repeat(1, 1, b, 1)           # [b, n_ph, b, n_box]
+        concept_sim = concept_sim.transpose(dim0=-3, dim1=-2)  # [b, b, n_ph, n_box]
 
         prediction = apply_concept_similarity(prediction, concept_sim)
+
+        # masking
+        synth_mask_ = synth_mask.view(1, b, n_ph, 1)
+        box_mask_ = box_mask.view(1, b, 1, n_box)
+
+        prediction = torch.masked_fill(prediction, synth_mask_ == 0, value=-1)
+        prediction = torch.masked_fill(prediction, box_mask_ == 0, value=-1)
 
         return prediction,
 
