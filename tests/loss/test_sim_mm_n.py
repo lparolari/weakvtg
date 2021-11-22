@@ -1,6 +1,6 @@
 import torch
 
-from weakvtg.loss import sim_mm_p, sim_mm_n
+from weakvtg.loss import sim_mm_n
 
 
 def test_sim_mm_n():
@@ -15,7 +15,11 @@ def test_sim_mm_n():
                         [0.5703, 0.6368]],
 
                        [[0.0000, 0.0000],
-                        [0.0000, 0.0000]]]])
-    index = torch.tensor([[[0, 1], [1, 1]]])
+                        [0.0000, 0.0000]]]])  # [b, b, n_ph, n_box]
 
-    assert torch.equal(sim_mm_n(x, index), torch.tensor([[[0.4334, 0.8536], [0.6368, 0.6368]]]))
+    index = torch.tensor([[[0, 1], [1, 1]]])  # [1, b, n_ph]
+    index = index.squeeze(0)  # [b, n_ph]
+
+    # TODO: test does not work because we exp the matrix befor return!
+
+    assert torch.equal(sim_mm_n(x, index), torch.tensor([[0.4334, 0.8536], [0.6368, 0.6368]]))

@@ -133,29 +133,16 @@ def arloss(prediction, prediction_mask, box_mask, box_class_count, loss_directio
     return loss
 
 
-def loss_maf(prediction):  #prediction_t, mask_t, f_similarity):
-    """
-    Returns
-                          sum_q e^sim(I, q)
-        L = - log -------------------------------------
-                       sum        sum     e^sim(I, q')
-                   S' in Batch  q' in S'
-    where
-        sim(I, S) is the multimodal similarity built predictions,
-        I is the set of bounding box,
-        B' is the negative batch of queries, and
-        S' is the set of negative queries
+def loss_maf(prediction):
 
-    :param prediction_t: A tuple of [*, n_ph, n_box] tensors
-    :param mask_t: A tuple of [*, n_ph] tensors
-    :param f_similarity: A multimodal similarity function
-    :return: A float value
-    """
     prediction_p = get_positive(prediction)  # [1, b, n_ph, n_box]
     score_p, index = sim_mm_p(prediction_p)  # [1, b, n_ph], [1, b, n_ph]
 
+    score_p = score_p.squeeze(-3)  # [b, n_ph]
+    index = index.squeeze(-3)      # [b, n_ph]
+
     prediction_n = get_negative(prediction)  # [b, b, n_ph, n_box]
-    score_n = sim_mm_n(prediction_n, index)  # [1, b, n_ph]
+    score_n = sim_mm_n(prediction_n, index)  # [b, n_ph]
 
     loss = -score_p + score_n
 
@@ -181,19 +168,23 @@ def sim_mm_n(prediction, index):
     Returns maximum value on `prediction` fixing box index in `index`.
 
     :param prediction: A [b, b, n_ph, n_box] tensor
-    :param index: A [1, b, n_ph] long tensor
+    :param index: A [b, n_ph] long tensor
     :return:
     """
-    from weakvtg.config import get_global_device
-    def ones(*args, **kwargs): return torch.ones(*args, device=get_global_device(), **kwargs)
-
     b = prediction.size()[0]
+    n_ph = prediction.size()[-2]
 
-    score_n = prediction.max(-2)[0]       # [b, b, n_box]
-    score_n = score_n.permute(0, 2, 1)    # [b, n_box, b]
-    score_n = score_n @ ones(b, 1)        # [b, n_box, 1]
-    score_n = score_n.permute(2, 0, 1)    # [1, b, n_box]
-    score_n = score_n.gather(-1, index)   # [1, b, n_ph]
+    index = index.unsqueeze(-2)       # [b, 1, n_ph]
+    index = index.unsqueeze(-1)       # [b, 1, n_ph, 1]
+    index = index.repeat(1, b, 1, 1)  # [b, b, n_ph, 1]
+
+    score_n = prediction.max(dim=-2, keepdim=True)[0]  # [b, b, 1, n_box]
+    score_n = score_n.repeat(1, 1, n_ph, 1)            # [b, b, n_ph, n_box]
+    score_n = score_n.gather(-1, index)                # [b, b, n_ph, 1]
+    score_n = score_n.squeeze(-1)                      # [b, b, n_ph]
+    score_n = score_n.exp()                            # [b, b, n_ph]
+    score_n = score_n.sum(dim=-2)                      # [b, n_ph]
+
     return score_n
 
 
