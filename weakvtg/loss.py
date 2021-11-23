@@ -109,20 +109,22 @@ def loss_maf(prediction, synth_mask):
     prediction_n = get_negative(prediction)  # [b, b, n_ph, n_box]
     synth_mask_p = get_positive(synth_mask).squeeze(0)   # [b, n_ph]
 
+    eps = 1e-08
+
     score_p, index = sim_mm_p(prediction_p)  # [1, b, n_ph], [1, b, n_ph]
     score_p = score_p.squeeze(-3)  # [b, n_ph]
     index = index.squeeze(-3)      # [b, n_ph]
 
     score_n = sim_mm_n(prediction_n, index)  # [b, n_ph]
 
-    loss = score_p / score_n  # [b, n_ph]
+    loss = torch.exp(score_p) / score_n  # [b, n_ph]
     loss = torch.log(loss)  # [b, n_ph]
 
     # mask padded phrases contributions
     loss = torch.masked_fill(loss, mask=synth_mask_p == 0, value=0)
     n_ph = synth_mask.sum(dim=-1)
 
-    loss = - loss.sum(dim=-1) / n_ph
+    loss = - loss.sum(dim=-1) / (n_ph + eps)
 
     return loss.mean()
 
