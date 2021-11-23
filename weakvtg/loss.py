@@ -173,12 +173,12 @@ def sim_mm_n(prediction, index):
     # choose one:
 
     # (1) maximum query
-    # score_n = score_n.max(dim=-1)[0]  # [b, n_ph]
-    # score_n = score_n.exp()           # [b, n_ph]
+    score_n = score_n.max(dim=-1)[0]  # [b, n_ph]
+    score_n = score_n.exp()           # [b, n_ph]
 
     # 2) sum queries error
-    score_n = score_n.exp()        # [b, n_ph, b, n_ph]
-    score_n = score_n.sum(dim=-1)  # [b, n_ph]
+    # score_n = score_n.exp()        # [b, n_ph, b, n_ph]
+    # score_n = score_n.sum(dim=-1)  # [b, n_ph]
 
     return score_n
 
