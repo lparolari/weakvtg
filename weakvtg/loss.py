@@ -25,47 +25,18 @@ class WeakVtgLoss(nn.Module):
         f_loss = self.f_loss
 
         boxes = batch["pred_boxes"]
-        boxes_mask = batch["pred_boxes_mask"]
         boxes_class_pred = batch["pred_cls_prob"]
         boxes_class = get_boxes_class(boxes_class_pred)
-        class_count = batch["class_count"]
         phrases_2_crd = batch["phrases_2_crd"]
         phrases_mask = batch["phrases_mask"]
-        phrases_mask_negative = batch["phrases_mask_negative"]
         phrases_synthetic = get_synthetic_mask(phrases_mask)
-        phrases_synthetic_negative = get_synthetic_mask(phrases_mask_negative)
-        boxes_class_count = get_box_class_count(boxes_class, class_count)
-        adjective_mask = batch["adjective_mask"]  # [b, n_np, n_attr]
-        box_attribute_mask = batch["attribute_mask"]  # [b, n_box]
 
-        # (predicted_score_positive, predicted_score_negative) = output[0]  # [b, n_ph, n_box]
-        # (positive_concept_similarity, negative_concept_similarity) = output[1]  # [b, n_ph, n_box]
-        # attribute_similarity = output[2]
         prediction = output[0]
-        # mask = get_batched_batch(phrases_synthetic).squeeze(-1)
-
-        # concept_direction = get_concept_similarity_direction(positive_concept_similarity)  # [b, n_ph, n_box]
-        # attribute_direction = get_attribute_similarity_direction(
-        #     attribute_similarity, box_attribute_mask=box_attribute_mask.unsqueeze(-2),
-        #     adjective_mask=adjective_mask.sum(dim=-1, keepdims=True).to(torch.bool))  # [b, n_ph, n_box]
-
-        # loss_direction = get_loss_direction(concept_direction, attribute_direction)  # TODO: temporary disabled
-
-        # score_positive_mask, score_negative_mask = phrases_synthetic.squeeze(-1), phrases_synthetic_negative.squeeze(-1)
-        # score_positive, score_negative = predicted_score_positive, predicted_score_negative
-
-        b = prediction.size(0)
-        n_box = prediction.size(-1)
-
-        synth_mask = get_batched_batch(get_synthetic_mask(phrases_mask)).squeeze(-1)
-
-        synth_mask_p = get_positive(synth_mask).squeeze(0)   # [b, n_ph]
-        synth_mask_n = get_negative(synth_mask).view(b, -1)  # [b, b*n_ph]
+        synth_mask = get_batched_batch(get_synthetic_mask(phrases_mask)).squeeze(-1)  # [b, b, n_ph]
 
         prediction_p = get_positive(prediction).squeeze(0)          # [b, n_ph, n_box]
-        prediction_n = get_negative(prediction).view(b, -1, n_box)  # [b, b*n_ph, n_box]
 
-        L = loss_maf(prediction)#(prediction_p, prediction_n), (synth_mask_p, synth_mask_n), sim_mm)
+        L = loss_maf(prediction, synth_mask)
 
         def get_validation(boxes, boxes_gt, scores, mask):
             with torch.no_grad():
@@ -133,18 +104,25 @@ def arloss(prediction, prediction_mask, box_mask, box_class_count, loss_directio
     return loss
 
 
-def loss_maf(prediction):
-
+def loss_maf(prediction, synth_mask):
     prediction_p = get_positive(prediction)  # [1, b, n_ph, n_box]
-    score_p, index = sim_mm_p(prediction_p)  # [1, b, n_ph], [1, b, n_ph]
+    prediction_n = get_negative(prediction)  # [b, b, n_ph, n_box]
+    synth_mask_p = get_positive(synth_mask).squeeze(0)   # [b, n_ph]
 
+    score_p, index = sim_mm_p(prediction_p)  # [1, b, n_ph], [1, b, n_ph]
     score_p = score_p.squeeze(-3)  # [b, n_ph]
     index = index.squeeze(-3)      # [b, n_ph]
 
-    prediction_n = get_negative(prediction)  # [b, b, n_ph, n_box]
     score_n = sim_mm_n(prediction_n, index)  # [b, n_ph]
 
-    loss = -score_p + score_n
+    loss = score_p / score_n  # [b, n_ph]
+    loss = torch.log(loss)  # [b, n_ph]
+
+    # mask padded phrases contributions
+    loss = torch.masked_fill(loss, mask=synth_mask_p == 0, value=0)
+    n_ph = synth_mask.sum(dim=-1)
+
+    loss = - loss.sum(dim=-1) / n_ph
 
     return loss.mean()
 
@@ -173,17 +151,32 @@ def sim_mm_n(prediction, index):
     """
     b = prediction.size()[0]
     n_ph = prediction.size()[-2]
+    n_box = prediction.size()[-1]
 
-    index = index.unsqueeze(-2)       # [b, 1, n_ph]
-    index = index.unsqueeze(-1)       # [b, 1, n_ph, 1]
-    index = index.repeat(1, b, 1, 1)  # [b, b, n_ph, 1]
+    # positive index box
+    index = index.unsqueeze(-1)          # [b, n_ph, 1]
+    index = index.unsqueeze(-1)          # [b, n_ph, 1, 1]
+    index = index.repeat(1, 1, b, n_ph)  # [b, n_ph, b, n_ph]
+    index = index.reshape(b, n_ph, -1)   # [b, n_ph, b*n_ph]
 
-    score_n = prediction.max(dim=-2, keepdim=True)[0]  # [b, b, 1, n_box]
-    score_n = score_n.repeat(1, 1, n_ph, 1)            # [b, b, n_ph, n_box]
-    score_n = score_n.gather(-1, index)                # [b, b, n_ph, 1]
-    score_n = score_n.squeeze(-1)                      # [b, b, n_ph]
-    score_n = score_n.exp()                            # [b, b, n_ph]
-    score_n = score_n.sum(dim=-2)                      # [b, n_ph]
+    # for readability purposes
+    prediction = prediction.permute(0, 2, 1, 3)  # [b, n_ph, b, n_b]
+
+    prediction = prediction.permute(0, 3, 2, 1)  # [b, n_b, b, n_ph]
+    prediction = prediction.reshape(b, n_box, -1)   # [b, n_b, b*n_ph]
+
+    # get the scores
+    score_n = prediction.gather(1, index)  # [b, n_ph, b*n_ph]
+
+    # choose one:
+
+    # (1) maximum query
+    # score_n = score_n.max(dim=-1)[0]  # [b, n_ph]
+    # score_n = score_n.exp()           # [b, n_ph]
+
+    # 2) sum queries error
+    score_n = score_n.exp()        # [b, n_ph, b, n_ph]
+    score_n = score_n.sum(dim=-1)  # [b, n_ph]
 
     return score_n
 
