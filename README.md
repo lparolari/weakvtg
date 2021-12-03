@@ -38,36 +38,12 @@ python main.py --help
 
 to show the help message.
 
-### Requirements
+Go to the requirement section in order to install all dependencies and see data
+section to prepare datasets.
 
-Please note that you may need to install some requirements to be able to 
-train or test the model.
+### Commands
 
-**Requirements**
-
-1. Install [Python](https://www.python.org/)
-
-2. Install [Anaconda](https://www.anaconda.com/)
-
-3. Install dependencies
-```
-conda env create -n weakvtg -f environment.yml
-```
-
-4. Download [spaCy](https://spacy.io/) resources
-```
-python -m spacy download en_core_web_sm
-```
-
-_Note_: the first execution may require some time for the downloading of 
-[GloVe](https://nlp.stanford.edu/projects/glove/) or 
-[Word2Vec](https://code.google.com/archive/p/word2vec/) pretrained word 
-embeddings.
-
-_Note_: depending on your system, you may need to install PyTorch compiled for 
-CPU-only.
-
-### Examples
+Some examples:
 
 1. Train the model
 
@@ -100,8 +76,7 @@ python main.py \
 2. Restore a trained model and test it
 
 ```sh
-cd "${PROJECT_PATH}"
-$ENV_PATH/python main.py \
+python main.py \
   --use-wandb \
   --workflow test \
   --log-level 10 \
@@ -125,6 +100,30 @@ $ENV_PATH/python main.py \
   --apply-concept-similarity-weight 0.5 \
   --restore /path/to/model_awesome_17.pth
 ```
+
+### Requirements
+
+1. Install [Python](https://www.python.org/)
+
+2. Install [Anaconda](https://www.anaconda.com/)
+
+3. Install dependencies
+```
+conda env create -n weakvtg -f environment.yml
+```
+
+4. Download [spaCy](https://spacy.io/) resources
+```
+python -m spacy download en_core_web_sm
+```
+
+_Note_: the first execution may require some time for the downloading of 
+[GloVe](https://nlp.stanford.edu/projects/glove/) or 
+[Word2Vec](https://code.google.com/archive/p/word2vec/) pretrained word 
+embeddings.
+
+_Note_: depending on your system, you may need to install PyTorch compiled for 
+CPU-only.
 
 ### Data
 
