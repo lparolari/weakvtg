@@ -211,10 +211,10 @@ if you need our preprocessing pipeline please write me at
 
 ## Related Works
 
-* [master-thesis](https://github.com/lparolari/master-thesis), repository 
-  containing the thesis dissertation (source code + artifacts).
+* [master-thesis](https://github.com/lparolari/master-thesis), thesis dissertation (LaTeX source code + artifacts).
 * [master-thesis-presentation](https://github.com/lparolari/master-thesis-presentation), 
-  repository with my thesis presentation (source code + artifacts).
+  thesis presentation + talk (LaTex source code + artifacts).
+* [master-thesis-report](https://github.com/lparolari/master-thesis-report), quasi-final thesis report (LaTeX source code + artifacts).
 * [master-thesis-log](https://github.com/lparolari/master-thesis-log), contains 
   scripts, notebooks, notes, todos and logs about the thesis.
 
